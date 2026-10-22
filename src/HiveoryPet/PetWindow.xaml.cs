@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using HiveoryPet.Agents;
-using Microsoft.UI;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Dispatching;
@@ -18,13 +17,13 @@ using WinRT.Interop;
 namespace HiveoryPet;
 
 /// <summary>
-/// The pet on screen: a borderless, always-on-top Windows App SDK window with a desktop acrylic backdrop. Its size and
-/// place follow the view model's look; every change of size is a spring, so it glides instead of jumping. Drag it to
-/// float; drop it near an edge spot to dock it there. Only UI wiring lives here.
+/// The pet on screen: a borderless, always-on-top Windows App SDK window on Windows' desktop acrylic. Its size and
+/// place follow the view model's look; every change of size is a spring, so it glides instead of jumping. Drag it
+/// anywhere to float; drop it near the top edge to make a notch there. Only UI wiring lives here.
 /// </summary>
 public sealed partial class PetWindow : Window
 {
-    /// <summary>The window's rounded corner, hidden above the screen edge at the top spots (DIPs).</summary>
+    /// <summary>The window's rounded corner, hidden above the screen edge in the notch (DIPs).</summary>
     private const double Corner = 8;
 
     private readonly nint _hwnd;
@@ -38,6 +37,7 @@ public sealed partial class PetWindow : Window
     private readonly DispatcherQueueTimer _leave;
     private DesktopAcrylicController? _acrylic;
     private SystemBackdropConfiguration? _backdrop;
+    private SettingsWindow? _settings;
     private bool _animating;
     private bool _hovered;
     private bool _menuOpen;
@@ -79,15 +79,16 @@ public sealed partial class PetWindow : Window
 
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.MomentHappened += OnMoment;
+        Root.ActualThemeChanged += (_, _) => SyncTheme();
         Root.Loaded += (_, _) =>
         {
             Native.MakePetWindow(_hwnd); // again once shown: WinUI sets the frame up late, after the constructor
+            SyncTheme();
             ViewModel.Refresh();
             Face.Mood = ViewModel.Mood;
             Arrange(jump: true);
             _tick.Start();
             _gaze.Start();
-            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => Native.MakePetWindow(_hwnd));
         };
         Closed += (_, _) =>
         {
@@ -105,28 +106,29 @@ public sealed partial class PetWindow : Window
     // ── Backdrop ───────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Windows' own desktop acrylic, dark and lightly tinted. The pet never takes focus, so the configuration always
-    /// says "active": otherwise acrylic would fall back to a flat colour the moment you click elsewhere.
+    /// Windows' own desktop acrylic, exactly as the system draws it for the current theme. The pet never takes focus,
+    /// so the configuration always says "active": otherwise acrylic falls back to a flat colour.
     /// </summary>
     private void UseAcrylic()
     {
         if (!DesktopAcrylicController.IsSupported())
         {
-            Root.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x14, 0x14, 0x14));
+            Root.Background = (Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"];
             return;
         }
 
-        _backdrop = new SystemBackdropConfiguration { IsInputActive = true, Theme = SystemBackdropTheme.Dark };
-        _acrylic = new DesktopAcrylicController
-        {
-            Kind = DesktopAcrylicKind.Base,
-            TintColor = Windows.UI.Color.FromArgb(255, 0x0A, 0x0A, 0x0A),
-            TintOpacity = 0.62f,
-            LuminosityOpacity = 0.92f,
-            FallbackColor = Windows.UI.Color.FromArgb(255, 0x14, 0x14, 0x14),
-        };
+        _backdrop = new SystemBackdropConfiguration { IsInputActive = true };
+        _acrylic = new DesktopAcrylicController();
         _acrylic.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
         _acrylic.SetSystemBackdropConfiguration(_backdrop);
+    }
+
+    private void SyncTheme()
+    {
+        if (_backdrop is not null)
+        {
+            _backdrop.Theme = Root.ActualTheme == ElementTheme.Light ? SystemBackdropTheme.Light : SystemBackdropTheme.Dark;
+        }
     }
 
     // ── Size and place ─────────────────────────────────────────────────────────────────────
@@ -135,7 +137,8 @@ public sealed partial class PetWindow : Window
     {
         switch (e.PropertyName)
         {
-            case nameof(PetViewModel.Look) or nameof(PetViewModel.Spot) or nameof(PetViewModel.Rows) or nameof(PetViewModel.IsEmpty):
+            case nameof(PetViewModel.Look) or nameof(PetViewModel.Dock) or nameof(PetViewModel.Rows)
+                or nameof(PetViewModel.IsEmpty) or nameof(PetViewModel.CanConnect):
                 Arrange();
                 break;
             case nameof(PetViewModel.Mood):
@@ -163,7 +166,7 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    /// <summary>Works out the window for the current look and spot, and glides there (or jumps, at start).</summary>
+    /// <summary>Works out the window for the current look and dock, and glides there (or jumps, at start).</summary>
     private void Arrange(bool jump = false)
     {
         if (Root.XamlRoot is null || _dragging)
@@ -172,57 +175,38 @@ public sealed partial class PetWindow : Window
         }
 
         var scale = Root.XamlRoot.RasterizationScale;
-        var spot = ViewModel.Spot;
-        var top = Placement.IsTop(spot);
-        var bottom = !top && spot != Spot.Floating;
-        var look = ViewModel.Look;
+        var notch = ViewModel.Dock == Dock.Notch;
+        var s = ViewModel.Settings;
 
-        // Top spots hang from the edge with their rounded top corners pushed above it; the content moves down to match.
-        var tuck = top ? (int)Math.Round(Corner * scale) : 0;
-        Root.Padding = new Thickness(0, top ? Corner : 0, 0, 0);
+        // In the notch the rounded top corners sit above the screen edge; the content moves down to match.
+        var tuck = notch ? (int)Math.Round(Corner * scale) : 0;
+        Root.Padding = new Thickness(0, notch ? Corner : 0, 0, 0);
+        Panel.HorizontalAlignment = notch ? HorizontalAlignment.Center : HorizontalAlignment.Left;
 
-        // At the bottom the list opens upwards: it goes above the head, and both hug the bottom.
-        Grid.SetRow(Head, bottom ? 1 : 0);
-        Grid.SetRow(Panel, bottom ? 0 : 1);
-        Stage.VerticalAlignment = bottom ? VerticalAlignment.Bottom : VerticalAlignment.Top;
-        Panel.Padding = bottom ? new Thickness(6, 8, 6, 0) : new Thickness(6, 0, 6, 8);
-        RuleAbove.Visibility = bottom ? Visibility.Collapsed : Visibility.Visible; // the rule always sits next to the head
-        RuleBelow.Visibility = bottom ? Visibility.Visible : Visibility.Collapsed;
-        TuckedFace.VerticalAlignment = bottom ? VerticalAlignment.Bottom : VerticalAlignment.Top;
-        Panel.HorizontalAlignment = spot switch
-        {
-            Spot.TopLeft or Spot.BottomLeft or Spot.Floating => HorizontalAlignment.Left,
-            Spot.TopRight or Spot.BottomRight => HorizontalAlignment.Right,
-            _ => HorizontalAlignment.Center,
-        };
-
-        var (width, height) = look switch
+        var (width, height) = ViewModel.Look switch
         {
             Look.Tucked => (84.0, 28.0),
-            Look.Face => (78.0, 60.0),
-            Look.Compact => (344.0, 60.0),
-            _ => (380.0, 60 + PanelHeight()),
+            Look.Face => (72.0, 56.0),
+            Look.Compact => (340.0, 56.0),
+            _ => (360.0, 56 + PanelHeight()),
         };
         var w = (int)Math.Round(width * scale);
         var h = (int)Math.Round(height * scale) + tuck;
 
-        var display = spot == Spot.Floating && ViewModel.Settings.FloatX is { } fx && ViewModel.Settings.FloatY is { } fy
+        var display = !notch && s.FloatX is { } fx && s.FloatY is { } fy
             ? DisplayArea.GetFromPoint(new PointInt32(fx, fy), DisplayAreaFallback.Primary)
             : DisplayArea.Primary;
         var work = new Box(display.WorkArea.X, display.WorkArea.Y, display.WorkArea.Width, display.WorkArea.Height);
-        var screenBottom = display.OuterBounds.Y + display.OuterBounds.Height;
-        var floor = Native.TaskbarFloor(screenBottom) is { } f && f > work.Y && display.DisplayId.Value == DisplayArea.Primary.DisplayId.Value ? f : work.Bottom;
-
-        var target = spot == Spot.Floating
-            ? Placement.Clamp(new Box(ViewModel.Settings.FloatX ?? (work.X + ((work.Width - w) / 2)), ViewModel.Settings.FloatY ?? (work.Y + (int)(120 * scale)), w, h), work)
-            : Placement.Dock(spot, w, h, work, floor, tuck, scale);
+        var target = notch
+            ? Placement.Notch(w, h, work, s.NotchX, tuck)
+            : Placement.Clamp(new Box(s.FloatX ?? (work.CenterX - (w / 2)), s.FloatY ?? (work.Y + (int)(120 * scale)), w, h), work);
         GlideTo(target, jump);
     }
 
-    /// <summary>The list's natural height at full width, capped so it never covers half the screen.</summary>
+    /// <summary>The list's natural height, capped so it never covers half the screen.</summary>
     private double PanelHeight()
     {
-        Panel.Measure(new Windows.Foundation.Size(380, double.PositiveInfinity));
+        Panel.Measure(new Windows.Foundation.Size(360, double.PositiveInfinity));
         return Math.Min(Panel.DesiredSize.Height, 440);
     }
 
@@ -234,9 +218,9 @@ public sealed partial class PetWindow : Window
         _h.Target = target.Height;
         if (jump)
         {
-            foreach (var s in new[] { _x, _y, _w, _h })
+            foreach (var spring in new[] { _x, _y, _w, _h })
             {
-                s.Jump();
+                spring.Jump();
             }
 
             Apply();
@@ -263,9 +247,9 @@ public sealed partial class PetWindow : Window
         var dt = Math.Min(_clock.Elapsed.TotalSeconds, 1 / 30.0);
         _clock.Restart();
         var settled = true;
-        foreach (var s in new[] { _x, _y, _w, _h })
+        foreach (var spring in new[] { _x, _y, _w, _h })
         {
-            settled &= s.Step(dt);
+            settled &= spring.Step(dt);
         }
 
         Apply();
@@ -349,30 +333,28 @@ public sealed partial class PetWindow : Window
     {
         if (_dragging)
         {
+            _dragging = _pressed = false;
             Dropped();
         }
-
-        _pressed = _dragging = false;
     }
 
-    /// <summary>Docks to the spot it was dropped near, or floats where it is.</summary>
+    /// <summary>Near the top edge: a notch right there. Anywhere else: it floats where it is.</summary>
     private void Dropped()
     {
         _dragging = false;
         var scale = Root.XamlRoot.RasterizationScale;
         var display = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
         var work = new Box(display.WorkArea.X, display.WorkArea.Y, display.WorkArea.Width, display.WorkArea.Height);
-        var floor = Native.TaskbarFloor(display.OuterBounds.Y + display.OuterBounds.Height) ?? work.Bottom;
         var p = AppWindow.Position;
         var size = AppWindow.Size;
-        var spot = Placement.Snap(new Box(p.X, p.Y, size.Width, size.Height), work, floor, (int)Math.Round(Corner * scale), scale);
-        if (spot == Spot.Floating)
+        var window = new Box(p.X, p.Y, size.Width, size.Height);
+        if (Placement.NearTop(window, work, scale))
         {
-            ViewModel.FloatAt(p.X, p.Y);
+            ViewModel.NotchAt(window.CenterX);
         }
         else
         {
-            ViewModel.MoveTo(spot);
+            ViewModel.FloatAt(p.X, p.Y);
         }
 
         Arrange();
@@ -413,12 +395,12 @@ public sealed partial class PetWindow : Window
     /// <summary>The eyes follow the cursor around the screen.</summary>
     private void Gaze()
     {
-        var face = ViewModel.Look == Look.Tucked ? TuckedFace : Face;
         if (Root.XamlRoot is null)
         {
             return;
         }
 
+        var face = ViewModel.Look == Look.Tucked ? TuckedFace : Face;
         var scale = Root.XamlRoot.RasterizationScale;
         var center = face.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(face.ActualWidth / 2, face.ActualHeight / 2));
         var p = AppWindow.Position;
@@ -428,9 +410,21 @@ public sealed partial class PetWindow : Window
 
     // ── Actions ────────────────────────────────────────────────────────────────────────────
 
-    private void OnListClick(object sender, RoutedEventArgs e) => ViewModel.ToggleList();
+    private void OnConnectClick(object sender, RoutedEventArgs e) => ViewModel.Connect();
 
-    private void OnFooterClick(object sender, RoutedEventArgs e) => ViewModel.Connect();
+    private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
+
+    /// <summary>One settings window; asking again brings it to the front.</summary>
+    private void OpenSettings()
+    {
+        if (_settings is null)
+        {
+            _settings = new SettingsWindow(ViewModel);
+            _settings.Closed += (_, _) => _settings = null;
+        }
+
+        _settings.Present();
+    }
 
     private void OnRowClick(object sender, ItemClickEventArgs e)
     {
@@ -448,66 +442,16 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    private void OnMenuClick(object sender, RoutedEventArgs e) => ShowMenu(MenuButton);
-
+    /// <summary>Right-click: a plain Windows context menu with the two things you'd look for.</summary>
     private void OnRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        ShowMenu(Root);
-    }
-
-    /// <summary>Settings, as Windows' own menu: position, agents, Hiveory, sounds, start with Windows.</summary>
-    private void ShowMenu(FrameworkElement anchor)
-    {
-        var menu = new MenuFlyout
-        {
-            ShouldConstrainToRootBounds = false,
-            Placement = ViewModel.Spot is Spot.BottomLeft or Spot.BottomCenter or Spot.BottomRight ? FlyoutPlacementMode.Top : FlyoutPlacementMode.Bottom,
-        };
-
-        var position = new MenuFlyoutSubItem { Text = "Position", Icon = new FontIcon { Glyph = "" } };
-        foreach (var (spot, label) in new[]
-        {
-            (Spot.TopCenter, "Top center"), (Spot.TopLeft, "Top left"), (Spot.TopRight, "Top right"),
-            (Spot.BottomLeft, "Bottom left"), (Spot.BottomCenter, "Bottom center"), (Spot.BottomRight, "Bottom right"),
-            (Spot.Floating, "Floating"),
-        })
-        {
-            var item = new RadioMenuFlyoutItem { Text = label, GroupName = "spot", IsChecked = ViewModel.Spot == spot };
-            item.Click += (_, _) => ViewModel.MoveTo(spot);
-            position.Items.Add(item);
-        }
-
-        var agents = new MenuFlyoutSubItem { Text = "Agents to watch", Icon = new FontIcon { Glyph = "" } };
-        foreach (var option in ViewModel.Agents)
-        {
-            var item = new ToggleMenuFlyoutItem { Text = option.Label, IsChecked = option.Following };
-            ToolTipService.SetToolTip(item, option.Spec.Note ?? $"Adds a small hook to {option.Spec.ConfigFile} in your user folder.");
-            item.Click += (_, _) =>
-            {
-                if (ViewModel.SetAgent(option.Spec, item.IsChecked) is { } message)
-                {
-                    Native.Message(message, "Hiveory Pet");
-                }
-            };
-            agents.Items.Add(item);
-        }
-
-        var hiveory = new ToggleMenuFlyoutItem { Text = "Watch Hiveory's agents", IsChecked = ViewModel.HiveoryOn, Icon = new FontIcon { Glyph = "" } };
-        hiveory.Click += (_, _) => ViewModel.SetHiveory(hiveory.IsChecked);
-        var sounds = new ToggleMenuFlyoutItem { Text = "Sounds", IsChecked = ViewModel.Sounds, Icon = new FontIcon { Glyph = "" } };
-        sounds.Click += (_, _) => ViewModel.ToggleSounds();
-        var startup = new ToggleMenuFlyoutItem { Text = "Start with Windows", IsChecked = Native.StartsWithWindows, Icon = new FontIcon { Glyph = "" } };
-        startup.Click += (_, _) => Native.StartsWithWindows = startup.IsChecked;
-        var quit = new MenuFlyoutItem { Text = "Quit Hiveory Pet", Icon = new FontIcon { Glyph = "" } };
+        var settings = new MenuFlyoutItem { Text = "Settings", Icon = new FontIcon { Glyph = "" } };
+        settings.Click += (_, _) => OpenSettings();
+        var quit = new MenuFlyoutItem { Text = "Quit Hiveory Pet", Icon = new FontIcon { Glyph = "" } };
         quit.Click += (_, _) => Application.Current.Exit();
-
-        menu.Items.Add(position);
-        menu.Items.Add(agents);
-        menu.Items.Add(hiveory);
-        menu.Items.Add(new MenuFlyoutSeparator());
-        menu.Items.Add(sounds);
-        menu.Items.Add(startup);
+        var menu = new MenuFlyout { ShouldConstrainToRootBounds = false, Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft };
+        menu.Items.Add(settings);
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(quit);
         menu.Opened += (_, _) => _menuOpen = true;
@@ -516,7 +460,7 @@ public sealed partial class PetWindow : Window
             _menuOpen = false;
             _leave.Start();
         };
-        menu.ShowAt(anchor);
+        menu.ShowAt(Root, e.GetPosition(Root));
     }
 
     private static DispatcherQueueTimer Timer(DispatcherQueue queue, int ms, Action tick)

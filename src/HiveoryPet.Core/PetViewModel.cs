@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using HiveoryPet.Agents;
 using HiveoryPet.Hiveory;
@@ -10,12 +11,37 @@ public enum Look { Tucked, Face, Compact, List }
 /// <summary>How the face feels.</summary>
 public enum Mood { Idle, Working, NeedsYou, Happy, Sleepy }
 
-/// <summary>An agent in the Agents menu.</summary>
-public sealed record AgentOption(AgentSpec Spec, string Label, bool Following);
+/// <summary>An agent in Settings › Agents, with a switch that adds or removes its hooks.</summary>
+public sealed partial class AgentToggle(AgentSpec spec, PetViewModel owner) : ObservableObject
+{
+    public AgentSpec Spec { get; } = spec;
+
+    public string Name => Spec.Name;
+
+    /// <summary>"Not found on this PC", or what the hook covers.</summary>
+    public string Detail => HookInstaller.Detected(Spec, Pet.Home) || IsOn
+        ? Spec.Note ?? $"Adds a small hook to ~\\{Spec.ConfigFile}"
+        : "Not found on this PC";
+
+    public bool IsOn
+    {
+        get => HookInstaller.IsInstalled(Spec, Pet.Home);
+        set
+        {
+            if (value != IsOn)
+            {
+                owner.SetAgent(Spec, value);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Detail));
+            }
+        }
+    }
+}
 
 /// <summary>
-/// What the pet shows and when: tucked when nothing happens (notch) or just its face (floating), the pill while
-/// agents work, on hover or for a few seconds after a moment, and the list on click. No UI types; unit-tested.
+/// What the pet shows and when: tucked into the notch when nothing happens (just its face when floating), the pill
+/// while agents work, on hover or for a few seconds after a moment, and the list on click. It also backs the settings
+/// window. No UI types; unit-tested.
 /// </summary>
 public sealed partial class PetViewModel : ObservableObject
 {
@@ -35,8 +61,10 @@ public sealed partial class PetViewModel : ObservableObject
         _pet = pet;
         _now = now ?? (() => DateTimeOffset.Now);
         _lastBusy = _now();
+        Agents = [.. AgentCatalog.All.Select(a => new AgentToggle(a, this))];
         _pet.Changed += OnChanged;
-        Greet();
+        _happyUntil = _now().AddSeconds(2); // hello
+        _peekUntil = _now().AddSeconds(3);
     }
 
     /// <summary>A moment worth a sound and a hop.</summary>
@@ -60,28 +88,72 @@ public sealed partial class PetViewModel : ObservableObject
     [ObservableProperty]
     public partial string EmptyText { get; private set; } = string.Empty;
 
+    /// <summary>Hiveory is on this PC but not linked: the list offers to connect.</summary>
     [ObservableProperty]
-    public partial string FooterText { get; private set; } = string.Empty;
+    public partial bool CanConnect { get; private set; }
 
-    /// <summary>The footer's button ("Connect"), or null for none.</summary>
+    /// <summary>How the Hiveory link is doing, for Settings.</summary>
     [ObservableProperty]
-    public partial string? FooterAction { get; private set; }
+    public partial string HiveoryStatus { get; private set; } = string.Empty;
+
+    /// <summary>Something to tell the user in Settings (a hook that couldn't be added, what to do next), or null.</summary>
+    [ObservableProperty]
+    public partial string? Notice { get; set; }
+
+    public ObservableCollection<AgentToggle> Agents { get; }
 
     public PetSettings Settings => _pet.Settings;
 
-    public Spot Spot => _pet.Settings.Spot;
+    public Dock Dock => _pet.Settings.Dock;
 
     public bool IsEmpty => Rows.Count == 0;
 
-    public bool Sounds => _pet.Settings.Sounds;
-
-    public bool HiveoryOn => _pet.Settings.Hiveory;
-
-    public IReadOnlyList<AgentOption> Agents => [.. AgentCatalog.All.Select(a =>
+    /// <summary>Settings › Position: 0 = notch, 1 = floating.</summary>
+    public int DockChoice
     {
-        var on = HookInstaller.IsInstalled(a, Pet.Home);
-        return new AgentOption(a, HookInstaller.Detected(a, Pet.Home) || on ? a.Name : $"{a.Name} · not found", on);
-    })];
+        get => (int)Dock;
+        set
+        {
+            if (value != (int)Dock)
+            {
+                _pet.Update(s => s with { Dock = (Dock)value });
+                Changed(nameof(Dock), nameof(DockChoice));
+            }
+        }
+    }
+
+    public bool Sounds
+    {
+        get => _pet.Settings.Sounds;
+        set
+        {
+            _pet.Update(s => s with { Sounds = value });
+            OnPropertyChanged();
+        }
+    }
+
+    public bool WatchHiveory
+    {
+        get => _pet.Settings.Hiveory;
+        set
+        {
+            if (value != _pet.Settings.Hiveory)
+            {
+                _pet.SetHiveory(value);
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool StartWithWindows
+    {
+        get => Startup.Enabled;
+        set
+        {
+            Startup.Enabled = value;
+            OnPropertyChanged();
+        }
+    }
 
     /// <summary>Works out the look, face and words from the current sessions. Called on every change and once a second.</summary>
     public void Refresh()
@@ -96,7 +168,7 @@ public sealed partial class PetViewModel : ObservableObject
 
         Look = _listOpen ? Look.List
             : _hovered || now < _peekUntil || headline.State != PetState.Idle ? Look.Compact
-            : Spot == Spot.Floating ? Look.Face
+            : Dock == Dock.Floating ? Look.Face
             : Look.Tucked;
         Mood = headline.State switch
         {
@@ -114,16 +186,17 @@ public sealed partial class PetViewModel : ObservableObject
             OnPropertyChanged(nameof(IsEmpty));
         }
 
-        EmptyText = AgentCatalog.All.Any(a => HookInstaller.IsInstalled(a, Pet.Home))
-            ? "Nothing running yet. Start Claude Code, Codex or Gemini and it shows up here."
-            : "Pick the agents I should watch under Settings › Agents.";
-        var hiveory = rows.Count(r => r.FromHiveory);
-        (FooterText, FooterAction) = (_pet.Settings.Hiveory, _pet.Link) switch
+        EmptyText = Agents.Any(a => a.IsOn)
+            ? "No agents running right now."
+            : "Choose the agents to watch in Settings.";
+        CanConnect = !_pet.Settings.Hiveory && HiveoryLink.Installed;
+        var linked = rows.Count(r => r.FromHiveory);
+        HiveoryStatus = (_pet.Settings.Hiveory, _pet.Link) switch
         {
-            (false, _) when HiveoryLink.Installed => ("Hiveory is on this PC", "Connect"),
-            (false, _) => ("Watching this PC", null),
-            (true, LinkState.Connected) => (hiveory == 1 ? "Linked to Hiveory · 1 agent" : $"Linked to Hiveory · {hiveory} agents", null),
-            (true, _) => ("Hiveory is closed", null),
+            (true, LinkState.Connected) => linked == 1 ? "Connected · 1 agent running" : $"Connected · {linked} agents running",
+            (true, _) => "Waiting for Hiveory to open",
+            (false, _) when HiveoryLink.Installed => "Shows each agent's name, workspace and worktree",
+            _ => "Hiveory isn't installed on this PC",
         };
     }
 
@@ -144,39 +217,39 @@ public sealed partial class PetViewModel : ObservableObject
         Refresh();
     }
 
-    public void Connect() => _pet.SetHiveory(true);
+    public void Connect() => WatchHiveory = true;
 
-    public void SetHiveory(bool on) => _pet.SetHiveory(on);
-
-    public void MoveTo(Spot spot)
+    /// <summary>Dropped near the top edge: into the notch, centred where it was dropped (physical pixels).</summary>
+    public void NotchAt(int centerX)
     {
-        _pet.Update(s => s with { Spot = spot });
-        OnPropertyChanged(nameof(Spot));
-        Refresh();
+        _pet.Update(s => s with { Dock = Dock.Notch, NotchX = centerX });
+        Changed(nameof(Dock), nameof(DockChoice));
     }
 
-    /// <summary>Dropped somewhere that isn't a spot: float there (physical pixels).</summary>
+    /// <summary>Dropped anywhere else: float there (physical pixels).</summary>
     public void FloatAt(int x, int y)
     {
-        _pet.Update(s => s with { Spot = Spot.Floating, FloatX = x, FloatY = y });
-        OnPropertyChanged(nameof(Spot));
+        _pet.Update(s => s with { Dock = Dock.Floating, FloatX = x, FloatY = y });
+        Changed(nameof(Dock), nameof(DockChoice));
+    }
+
+    /// <summary>Starts or stops watching an agent; what to tell the user goes to <see cref="Notice"/>.</summary>
+    public void SetAgent(AgentSpec agent, bool on)
+    {
+        Notice = _pet.SetHooks(agent, on) is { } error
+            ? $"Couldn't change {agent.Name}. {error}"
+            : on && agent.Id == "codex" ? "Codex asks before it runs new hooks: type /hooks in Codex once." : null;
         Refresh();
     }
 
-    public void ToggleSounds() => _pet.Update(s => s with { Sounds = !s.Sounds });
-
-    /// <summary>Starts or stops following an agent; returns what to tell the user, or null.</summary>
-    public string? SetAgent(AgentSpec agent, bool on)
+    private void Changed(params string[] names)
     {
-        var error = _pet.SetHooks(agent, on);
+        foreach (var name in names)
+        {
+            OnPropertyChanged(name);
+        }
+
         Refresh();
-        return error ?? (on && agent.Note is { } note ? $"I'm now watching {agent.Name}. {note}" : null);
-    }
-
-    private void Greet()
-    {
-        _happyUntil = _now().AddSeconds(2);
-        _peekUntil = _now().AddSeconds(3);
     }
 
     private void OnChanged(Moment moment, string who)

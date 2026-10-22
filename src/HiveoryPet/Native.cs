@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Microsoft.Win32;
 
 namespace HiveoryPet;
 
@@ -14,8 +13,6 @@ internal static partial class Native
     private const int Round = 2;
     private const int BorderColor = 34; // DWMWA_BORDER_COLOR
     private const int Restore = 9;
-    private const uint GetTaskbarPos = 5; // ABM_GETTASKBARPOS
-    private const uint BottomEdge = 3; // ABE_BOTTOM
 
     /// <summary>No focus stealing, no taskbar button, Windows 11's rounded corners and no outline.</summary>
     public static void MakePetWindow(nint hwnd)
@@ -32,18 +29,6 @@ internal static partial class Native
 
     /// <summary>The cursor in physical screen pixels.</summary>
     public static (int X, int Y) Cursor() => GetCursorPos(out var p) ? (p.X, p.Y) : (0, 0);
-
-    /// <summary>
-    /// The top edge of a bottom taskbar, in physical pixels, measured from the screen's bottom so it holds while an
-    /// auto-hiding taskbar is tucked away; null when the taskbar sits on another edge.
-    /// </summary>
-    public static int? TaskbarFloor(int screenBottom)
-    {
-        var data = new AppBarData { Size = (uint)Marshal.SizeOf<AppBarData>() };
-        return SHAppBarMessage(GetTaskbarPos, ref data) != 0 && data.Edge == BottomEdge
-            ? screenBottom - (data.Rect.Bottom - data.Rect.Top)
-            : null;
-    }
 
     /// <summary>Brings the main window of <paramref name="pid"/> to the front; false when it has none.</summary>
     public static bool BringForward(int pid)
@@ -76,26 +61,8 @@ internal static partial class Native
         return false;
     }
 
-    public static void Message(string text, string title) => MessageBoxW(0, text, title, 0x40 /* MB_ICONINFORMATION */);
-
-    private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-
-    public static bool StartsWithWindows
-    {
-        get => Registry.CurrentUser.OpenSubKey(RunKey)?.GetValue("HiveoryPet") is not null;
-        set
-        {
-            using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-            if (value)
-            {
-                key.SetValue("HiveoryPet", $"\"{Environment.ProcessPath}\"");
-            }
-            else
-            {
-                key.DeleteValue("HiveoryPet", throwOnMissingValue: false);
-            }
-        }
-    }
+    /// <summary>Asks Windows to give <paramref name="hwnd"/> the focus (it may say no; the window is in front anyway).</summary>
+    public static void Focus(nint hwnd) => BringForward(hwnd);
 
     // The pet just got the user's click, so Windows lets it hand the foreground to another window.
     private static bool BringForward(nint hwnd)
@@ -120,26 +87,6 @@ internal static partial class Native
         public int Y;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct AppBarData
-    {
-        public uint Size;
-        public nint Window;
-        public uint CallbackMessage;
-        public uint Edge;
-        public Rect Rect;
-        public nint Param;
-    }
-
     [LibraryImport("user32.dll")]
     private static partial nint GetWindowLongPtrW(nint hwnd, int index);
 
@@ -152,9 +99,6 @@ internal static partial class Native
 
     [LibraryImport("dwmapi.dll")]
     private static partial int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);
-
-    [LibraryImport("shell32.dll")]
-    private static partial nuint SHAppBarMessage(uint message, ref AppBarData data);
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -171,7 +115,4 @@ internal static partial class Native
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool IsIconic(nint hwnd);
-
-    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
-    private static partial int MessageBoxW(nint hwnd, string text, string caption, uint type);
 }

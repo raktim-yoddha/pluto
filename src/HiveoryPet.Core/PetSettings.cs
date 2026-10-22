@@ -10,7 +10,10 @@ namespace HiveoryPet;
 /// </summary>
 public sealed record PetSettings
 {
-    public Spot Spot { get; set; } = Spot.TopCenter;
+    public Dock Dock { get; set; } = Dock.Notch;
+
+    /// <summary>Where along the top edge the notch is centred (physical pixels); null for the middle of the screen.</summary>
+    public int? NotchX { get; set; }
 
     /// <summary>Where a floating pet was left (physical pixels); null until it first floats.</summary>
     public int? FloatX { get; set; }

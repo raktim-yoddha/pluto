@@ -16,15 +16,10 @@
         PointerExited="OnExited"
         RightTapped="OnRightTapped">
 
-        <Grid x:Name="Stage" VerticalAlignment="Top">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
-            <!-- The face, what's going on, and the two buttons. -->
-            <Grid x:Name="Head" Grid.Row="0" Height="60">
-                <!-- Tucked against the edge: just the eyes. -->
+        <StackPanel x:Name="Stage" VerticalAlignment="Top">
+            <!-- The face, what's going on, and Settings. -->
+            <Grid x:Name="Head" Height="56">
+                <!-- Tucked into the notch: just the eyes. -->
                 <local:BotFace
                     x:Name="TuckedFace"
                     EyesOnly="True"
@@ -35,16 +30,16 @@
                     VerticalAlignment="Top"
                     Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Tucked'), Mode=OneWay}">
                     <local:BotFace.OpacityTransition>
-                        <ScalarTransition Duration="0:0:0.18" />
+                        <ScalarTransition Duration="0:0:0.167" />
                     </local:BotFace.OpacityTransition>
                 </local:BotFace>
 
                 <Grid
-                    x:Name="Full"
-                    Padding="7,0,6,0"
+                    Padding="10,0,8,0"
+                    ColumnSpacing="12"
                     Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Face,Compact,List'), Mode=OneWay}">
                     <Grid.OpacityTransition>
-                        <ScalarTransition Duration="0:0:0.18" />
+                        <ScalarTransition Duration="0:0:0.167" />
                     </Grid.OpacityTransition>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -52,84 +47,58 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <local:BotFace x:Name="Face" Width="48" Height="38" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    <local:BotFace x:Name="Face" Width="48" Height="38" Margin="2,0,0,0" VerticalAlignment="Center" />
 
                     <StackPanel
                         Grid.Column="1"
-                        Margin="10,0,4,1"
                         VerticalAlignment="Center"
-                        Spacing="1"
                         Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Compact,List'), Mode=OneWay}">
                         <StackPanel.OpacityTransition>
-                            <ScalarTransition Duration="0:0:0.22" />
+                            <ScalarTransition Duration="0:0:0.25" />
                         </StackPanel.OpacityTransition>
-                        <TextBlock
-                            Text="{x:Bind ViewModel.Title, Mode=OneWay}"
-                            Style="{StaticResource BodyStrongTextBlockStyle}"
-                            Foreground="{StaticResource PetInk}"
-                            MaxLines="1"
-                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" MaxLines="1" TextTrimming="CharacterEllipsis" />
                         <TextBlock
                             Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
-                            FontFamily="{StaticResource PetMono}"
-                            FontSize="11"
-                            Foreground="{StaticResource PetMuted}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             MaxLines="1"
                             TextTrimming="CharacterEllipsis" />
                     </StackPanel>
 
-                    <StackPanel
+                    <Button
+                        x:Name="SettingsButton"
                         Grid.Column="2"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
                         VerticalAlignment="Center"
-                        Orientation="Horizontal"
-                        Spacing="2"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnSettingsClick"
                         Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Compact,List'), Mode=OneWay}"
-                        IsHitTestVisible="{x:Bind local:Ui.Hit(ViewModel.Look, 'Compact,List'), Mode=OneWay}">
-                        <StackPanel.OpacityTransition>
-                            <ScalarTransition Duration="0:0:0.22" />
-                        </StackPanel.OpacityTransition>
-                        <Button
-                            x:Name="MenuButton"
-                            Width="34"
-                            Height="34"
-                            Padding="0"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Click="OnMenuClick"
-                            ToolTipService.ToolTip="Settings"
-                            AutomationProperties.Name="Settings">
-                            <FontIcon Glyph="&#xE712;" FontSize="14" Foreground="{StaticResource PetSoft}" />
-                        </Button>
-                        <Button
-                            Width="34"
-                            Height="34"
-                            Padding="0"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Click="OnListClick"
-                            ToolTipService.ToolTip="Every session"
-                            AutomationProperties.Name="Show or hide every session">
-                            <FontIcon Glyph="{x:Bind local:Ui.Chevron(ViewModel.Look, ViewModel.Spot), Mode=OneWay}" FontSize="12" Foreground="{StaticResource PetSoft}" />
-                        </Button>
-                    </StackPanel>
+                        IsHitTestVisible="{x:Bind local:Ui.Hit(ViewModel.Look, 'Compact,List'), Mode=OneWay}"
+                        ToolTipService.ToolTip="Settings"
+                        AutomationProperties.Name="Settings">
+                        <Button.OpacityTransition>
+                            <ScalarTransition Duration="0:0:0.25" />
+                        </Button.OpacityTransition>
+                        <FontIcon Glyph="&#xE713;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </Button>
                 </Grid>
             </Grid>
 
-            <!-- Every session, then the Hiveory line. -->
+            <!-- Every session. -->
             <StackPanel
                 x:Name="Panel"
-                Grid.Row="1"
-                Width="380"
-                Padding="6,0,6,8"
+                Width="360"
+                Padding="4,0,4,6"
                 Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'List'), Mode=OneWay}"
                 IsHitTestVisible="{x:Bind local:Ui.Hit(ViewModel.Look, 'List'), Mode=OneWay}">
                 <StackPanel.OpacityTransition>
-                    <ScalarTransition Duration="0:0:0.22" />
+                    <ScalarTransition Duration="0:0:0.25" />
                 </StackPanel.OpacityTransition>
-                <Rectangle x:Name="RuleAbove" Height="1" Margin="10,0,10,2" Fill="{StaticResource PetLine}" />
                 <ListView
-                    x:Name="List"
-                    MaxHeight="372"
+                    MaxHeight="384"
                     ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}"
                     SelectionMode="None"
                     IsItemClickEnabled="True"
@@ -137,99 +106,48 @@
                     AutomationProperties.Name="Agent sessions">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:Row">
-                            <Grid Padding="0,9,0,9" AutomationProperties.Name="{x:Bind Title}">
+                            <Grid MinHeight="52" Padding="0,6,0,6" ColumnSpacing="12" AutomationProperties.Name="{x:Bind Title}">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="18" />
+                                    <ColumnDefinition Width="16" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Ellipse
-                                    Width="8"
-                                    Height="8"
-                                    Margin="0,6,0,0"
-                                    HorizontalAlignment="Left"
-                                    VerticalAlignment="Top"
-                                    Fill="{x:Bind local:Ui.DotFill(State, JustFinished)}"
-                                    Stroke="{x:Bind local:Ui.DotStroke(State, JustFinished)}"
-                                    StrokeThickness="1.5" />
-                                <StackPanel Grid.Column="1" Spacing="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                        <Border
-                                            Padding="5,0,5,1"
-                                            VerticalAlignment="Center"
-                                            BorderBrush="{StaticResource PetLine}"
-                                            BorderThickness="1"
-                                            CornerRadius="4"
-                                            Visibility="{x:Bind local:Ui.Shown(FromHiveory)}">
-                                            <TextBlock Text="HIVEORY" FontFamily="{StaticResource PetMono}" FontSize="9" Foreground="{StaticResource PetMuted}" />
-                                        </Border>
-                                    </StackPanel>
+                                <ProgressRing Width="14" Height="14" IsActive="True" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'working')}" />
+                                <Ellipse Width="8" Height="8" Fill="{ThemeResource SystemFillColorCautionBrush}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'needs')}" />
+                                <InfoBadge HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource SuccessDotInfoBadgeStyle}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'done')}" />
+                                <Ellipse Width="6" Height="6" Fill="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'idle')}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyTextBlockStyle}" MaxLines="1" TextTrimming="CharacterEllipsis" />
                                     <TextBlock
-                                        Text="{x:Bind Subtitle}"
-                                        FontFamily="{StaticResource PetMono}"
-                                        FontSize="11"
-                                        Foreground="{StaticResource PetMuted}"
-                                        MaxLines="1"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        Text="{x:Bind Activity}"
-                                        FontSize="12.5"
-                                        Foreground="{StaticResource PetSoft}"
+                                        Text="{x:Bind local:Ui.Detail(Activity, Subtitle)}"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                         MaxLines="1"
                                         TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <TextBlock
                                     Grid.Column="2"
-                                    Margin="8,2,2,0"
-                                    VerticalAlignment="Top"
+                                    VerticalAlignment="Center"
                                     Text="{x:Bind Time}"
-                                    FontFamily="{StaticResource PetMono}"
-                                    FontSize="11"
-                                    Foreground="{StaticResource PetMuted}" />
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
                 <TextBlock
-                    Margin="16,10,16,10"
+                    Margin="16,8,16,10"
                     Text="{x:Bind ViewModel.EmptyText, Mode=OneWay}"
-                    Foreground="{StaticResource PetMuted}"
-                    TextWrapping="Wrap"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Visibility="{x:Bind local:Ui.Shown(ViewModel.IsEmpty), Mode=OneWay}" />
-                <Rectangle Height="1" Margin="10,2,10,6" Fill="{StaticResource PetLine}" />
-                <Grid Padding="16,0,8,0">
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        Text="{x:Bind ViewModel.FooterText, Mode=OneWay}"
-                        FontFamily="{StaticResource PetMono}"
-                        FontSize="11"
-                        Foreground="{StaticResource PetMuted}" />
-                    <Button
-                        HorizontalAlignment="Right"
-                        Padding="14,4,14,5"
-                        CornerRadius="14"
-                        FontWeight="SemiBold"
-                        Content="{x:Bind ViewModel.FooterAction, Mode=OneWay}"
-                        Visibility="{x:Bind local:Ui.Shown(ViewModel.FooterAction), Mode=OneWay}"
-                        Click="OnFooterClick"
-                        AutomationProperties.Name="Connect Hiveory">
-                        <!-- White on black, like the rest of the pet (lightweight styling keeps the native button). -->
-                        <Button.Resources>
-                            <SolidColorBrush x:Key="ButtonBackground" Color="#FFFFFF" />
-                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#E6E6E6" />
-                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#CCCCCC" />
-                            <SolidColorBrush x:Key="ButtonForeground" Color="#000000" />
-                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#000000" />
-                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#000000" />
-                            <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
-                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
-                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
-                        </Button.Resources>
-                    </Button>
-                </Grid>
-                <Rectangle x:Name="RuleBelow" Height="1" Margin="10,8,10,0" Fill="{StaticResource PetLine}" Visibility="Collapsed" />
+                <HyperlinkButton
+                    Margin="6,0,6,0"
+                    Content="Show Hiveory's agents"
+                    Visibility="{x:Bind local:Ui.Shown(ViewModel.CanConnect), Mode=OneWay}"
+                    Click="OnConnectClick"
+                    AutomationProperties.Name="Show Hiveory's agents" />
             </StackPanel>
-        </Grid>
+        </StackPanel>
     </Grid>
 </Window>

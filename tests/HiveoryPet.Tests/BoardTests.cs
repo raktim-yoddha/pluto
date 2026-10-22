@@ -54,39 +54,28 @@ public class BoardTests
 
 public class PlacementTests
 {
-    // A 1920×1080 screen at 100 %, its taskbar hidden (so the work area is the whole screen) but 48 px tall when shown.
     private static readonly Box Work = new(0, 0, 1920, 1080);
-    private const int Floor = 1032;
 
     [Fact]
-    public void Top_spots_hang_from_the_edge_and_bottom_spots_float_above_the_taskbar()
+    public void The_notch_hangs_from_the_top_edge_wherever_it_was_put()
     {
-        Assert.Equal(new Box(810, -10, 300, 60), Placement.Dock(Spot.TopCenter, 300, 60, Work, Floor, 10, 1));
-        Assert.Equal(new Box(12, -10, 300, 60), Placement.Dock(Spot.TopLeft, 300, 60, Work, Floor, 10, 1));
-        Assert.Equal(new Box(1608, -10, 300, 60), Placement.Dock(Spot.TopRight, 300, 60, Work, Floor, 10, 1));
-        Assert.Equal(new Box(810, 960, 300, 60), Placement.Dock(Spot.BottomCenter, 300, 60, Work, Floor, 10, 1));
-        Assert.Equal(new Box(12, 960, 300, 60), Placement.Dock(Spot.BottomLeft, 300, 60, Work, Floor, 10, 1));
-        Assert.Equal(new Box(1608, 960, 300, 60), Placement.Dock(Spot.BottomRight, 300, 60, Work, Floor, 10, 1));
+        Assert.Equal(new Box(810, -10, 300, 60), Placement.Notch(300, 60, Work, null, 10));
+        Assert.Equal(new Box(250, -10, 300, 60), Placement.Notch(300, 60, Work, 400, 10));
     }
 
     [Fact]
-    public void A_shown_taskbar_already_left_out_of_the_work_area_counts_once()
+    public void A_notch_near_a_side_grows_away_from_it_and_stays_on_screen()
     {
-        var work = new Box(0, 0, 1920, 1032);
-        Assert.Equal(960, Placement.Dock(Spot.BottomCenter, 300, 60, work, Floor, 10, 1).Y);
+        Assert.Equal(0, Placement.Notch(300, 60, Work, 40, 10).X);
+        Assert.Equal(1620, Placement.Notch(300, 60, Work, 1900, 10).X);
     }
 
     [Fact]
-    public void Spots_scale_with_the_display()
+    public void Dropping_near_the_top_makes_a_notch_and_anywhere_else_floats()
     {
-        Assert.Equal(new Box(18, 954, 300, 60), Placement.Dock(Spot.BottomLeft, 300, 60, Work, Floor, 10, 1.5));
-    }
-
-    [Fact]
-    public void Dropping_near_a_spot_docks_and_anywhere_else_floats()
-    {
-        Assert.Equal(Spot.BottomRight, Placement.Snap(new Box(1580, 930, 300, 60), Work, Floor, 10, 1));
-        Assert.Equal(Spot.Floating, Placement.Snap(new Box(700, 500, 300, 60), Work, Floor, 10, 1));
+        Assert.True(Placement.NearTop(new Box(700, 40, 300, 60), Work, 1));
+        Assert.False(Placement.NearTop(new Box(700, 300, 300, 60), Work, 1));
+        Assert.True(Placement.NearTop(new Box(700, 80, 300, 60), Work, 1.5));
     }
 
     [Fact]

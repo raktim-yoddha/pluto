@@ -7,9 +7,9 @@ public class ViewModelTests
 {
     private DateTimeOffset _now = new(2026, 10, 22, 12, 0, 0, TimeSpan.Zero);
 
-    private (Pet Pet, PetViewModel Vm) Make(Spot spot = Spot.TopCenter)
+    private (Pet Pet, PetViewModel Vm) Make(Dock dock = Dock.Notch)
     {
-        var pet = new Pet(action => action(), new PetSettings { Spot = spot });
+        var pet = new Pet(action => action(), new PetSettings { Dock = dock });
         return (pet, new PetViewModel(pet, () => _now));
     }
 
@@ -28,8 +28,13 @@ public class ViewModelTests
         Assert.Equal(Look.Tucked, vm.Look);
         Assert.Equal("Nothing running", vm.Title);
 
-        vm.MoveTo(Spot.Floating);
+        vm.DockChoice = 1;
+        Assert.Equal(Dock.Floating, vm.Dock);
         Assert.Equal(Look.Face, vm.Look);
+
+        vm.NotchAt(400);
+        Assert.Equal(Look.Tucked, vm.Look);
+        Assert.Equal(400, vm.Settings.NotchX);
     }
 
     [Fact]
@@ -75,8 +80,10 @@ public class SettingsTests
     [Fact]
     public void Settings_missing_from_the_file_keep_their_defaults()
     {
-        var s = System.Text.Json.JsonSerializer.Deserialize("""{"Spot":"BottomLeft"}""", SettingsJson.Default.PetSettings)!;
-        Assert.Equal(Spot.BottomLeft, s.Spot);
+        // An old file (with the six spots) still loads: unknown keys are ignored.
+        var s = System.Text.Json.JsonSerializer.Deserialize("""{"Spot":"BottomLeft","Hiveory":true}""", SettingsJson.Default.PetSettings)!;
+        Assert.Equal(Dock.Notch, s.Dock);
+        Assert.True(s.Hiveory);
         Assert.True(s.Sounds);
         Assert.Null(s.FloatX);
     }

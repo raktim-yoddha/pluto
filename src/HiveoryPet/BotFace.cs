@@ -10,8 +10,8 @@ using Microsoft.UI.Xaml.Shapes;
 namespace HiveoryPet;
 
 /// <summary>
-/// The pet's face, drawn in dots like a Nothing glyph: two dot-matrix eyes that blink and follow the cursor, a dot
-/// smile, three thinking dots while an agent works, and a red dot when one needs you. Every movement is a
+/// The pet's face, drawn in dots: two dot-matrix eyes that blink and follow the cursor, a dot smile, three thinking
+/// dots while an agent works, and a caution dot when one needs you. Colours are theme tokens (light or dark). Every movement is a
 /// composition animation or an implicit transition, so it runs on the compositor thread at the display's frame rate.
 /// </summary>
 public sealed partial class BotFace : Grid
@@ -21,8 +21,9 @@ public sealed partial class BotFace : Grid
     private const double EyeGap = 18;
     private const int EyeRows = 3;
 
-    private static readonly SolidColorBrush Ink = new(Colors.White);
-    private static readonly SolidColorBrush Alert = new(Windows.UI.Color.FromArgb(255, 0xFF, 0x3B, 0x30));
+    // One brush each, shared by every dot, recoloured when the theme changes.
+    private static readonly SolidColorBrush Ink = new();
+    private static readonly SolidColorBrush Alert = new();
 
     private readonly Canvas _stage = new();
     private readonly Canvas _eyes = new();
@@ -40,6 +41,8 @@ public sealed partial class BotFace : Grid
     public BotFace()
     {
         IsHitTestVisible = false;
+        Recolor();
+        ActualThemeChanged += (_, _) => Recolor();
         _left = Eye();
         _right = Eye();
         _alert = new Ellipse { Width = 5.4, Height = 5.4, Fill = Alert, Opacity = 0 };
@@ -48,6 +51,15 @@ public sealed partial class BotFace : Grid
         Unloaded += (_, _) => _blink?.Stop();
         SizeChanged += (_, _) => Lay();
     }
+
+    private static void Recolor()
+    {
+        Ink.Color = Token("TextFillColorPrimaryBrush");
+        Alert.Color = Token("SystemFillColorCautionBrush");
+    }
+
+    private static Windows.UI.Color Token(string key) =>
+        Application.Current.Resources.TryGetValue(key, out var brush) && brush is SolidColorBrush solid ? solid.Color : Colors.Gray;
 
     /// <summary>Only the eyes (the tucked pill).</summary>
     public bool EyesOnly { get; set; }

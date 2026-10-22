@@ -10,28 +10,27 @@ NativeAOT hook relay. No Electron, no browser engine.
 
 ## Using it
 
+It follows Windows: your light or dark theme, Windows' own acrylic, Segoe UI, native lists, menus and Settings.
+
 | You | The pet |
 |---|---|
-| Nothing is happening | Tucked against the edge, just its eyes (floating: just its face); sleepy after 10 quiet minutes |
-| An agent works | A pill: "2 agents working · Claude Code · Editing Cart.cs", thinking dots |
-| An agent needs you | A pulsing red dot, "Codex needs you · Wants your OK to run npm test", a ping |
+| Nothing is happening | Tucked into its notch at the top of the screen, just its eyes (floating: just its face); sleepy after 10 quiet minutes |
+| An agent works | "Claude Code is working · Editing Cart.cs", thinking dots; a progress ring on its row |
+| An agent needs you | "Codex needs you · Wants your OK to run npm test", a caution dot and a soft ping |
 | An agent finishes | Happy eyes and a hop, "Claude Code is done · Done in 4:12 · 3 edits", a chime |
 | Hover | It opens to the pill |
-| Click | The list of every session; click one to bring its window forward |
-| Drag | Float it anywhere; drop it near an edge spot to dock it again |
-| ⚙ or right-click | Position, Agents, Connect Hiveory, Sounds, Start with Windows, Quit |
+| Click | Every session; click one to bring its terminal, editor or app forward |
+| Drag | Drop it near the top edge to make a notch right there, anywhere along it; anywhere else it floats |
+| ⚙ or right-click | Settings |
 
-**Positions:** top center (the notch), top left, top right, bottom left, bottom center, bottom right, floating.
-Top spots hang from the screen edge like a notch. Bottom spots float just above the taskbar (also when it hides
-itself) and open their list upwards.
-
-**Agents:** under Settings › Agents to watch, tick the agents to follow. The pet adds a small hook to that agent's own
-config (`~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.gemini/settings.json`, `~/.cursor/hooks.json`,
+**Settings** (a Windows Settings–style window): where the pet lives (top edge or floating), the agents to watch,
+Hiveory, sounds, start with Windows. Turning an agent on adds a small hook to that agent's own config
+(`~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.gemini/settings.json`, `~/.cursor/hooks.json`,
 `~/.copilot/hooks/hiveory-pet.json`), next to yours, and keeps a copy of the original file the first time
-(`*.before-hiveory-pet`). Unticking removes only its own entries. Codex asks you to trust new hooks once (`/hooks`).
+(`*.before-hiveory-pet`). Turning it off removes only its own entries. Codex asks you to trust new hooks once (`/hooks`).
 
-**Hiveory:** click Connect Hiveory. Hiveory (from its next release, Settings › Agents › Hiveory Pet) shares its running
-agents' names and statuses over a local link; nothing else.
+**Hiveory:** turn on "Show Hiveory's agents" (or click it in the list). Hiveory (from its next release, Settings ›
+Agents › Hiveory Pet) shares its running agents' names and statuses over a local link; nothing else.
 
 ## How it works
 
@@ -49,10 +48,11 @@ agent hook ──stdin──▶ hiveory-pet-hook.exe ──named pipe (this user
   - `Hiveory/` is the Hiveory link: reads `%LOCALAPPDATA%\Hiveory\Runtime\pet-link.json` and follows
     `GET /pet/events` (Hiveory's ADR 0054).
   - `Board.cs` makes one list from both (a hook session inside a Hiveory agent shows once), `Placement.cs` the
-    spots, `PetViewModel.cs` what the pet shows and when.
+    notch and floating positions, `PetViewModel.cs` what the pet shows and when, and what Settings binds to.
 - `src/HiveoryPet` — the WinUI 3 window: a borderless, always-on-top `AppWindow` that never takes focus, with a
   `DesktopAcrylicController` backdrop. Size changes glide on a spring; the dot-matrix face (`BotFace.cs`) blinks,
   breathes, hops and looks at your cursor with composition animations, so it all runs at the display's frame rate.
+  `SettingsWindow` is a Mica window with the system title bar and Windows Settings cards (`SettingCard`).
 
 ## Privacy
 
@@ -65,7 +65,7 @@ access except Hiveory's link on 127.0.0.1.
 Requires Windows 10/11 and the .NET 10 SDK.
 
 ```powershell
-dotnet test tests/HiveoryPet.Tests  # 39 tests
+dotnet test tests/HiveoryPet.Tests  # 38 tests
 dotnet build src/HiveoryPet          # then run src/HiveoryPet/bin/Debug/net10.0-windows10.0.26100.0/win-x64/HiveoryPet.exe
 pwsh scripts/publish.ps1             # out/HiveoryPet-win-x64.zip, self-contained (NativeAOT relay needs the VS C++ workload)
 ```
