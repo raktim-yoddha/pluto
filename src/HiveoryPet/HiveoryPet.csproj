@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>HiveoryPet</AssemblyName>
+    <RootNamespace>HiveoryPet</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Fluent dark theme for menus (WPF0001: the API is marked experimental). -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+  </PropertyGroup>
+  <!-- The hook relay ships next to the app; the pet copies it to a stable folder on start. -->
+  <Target Name="BundleRelay" AfterTargets="Build">
+    <MSBuild Projects="..\HiveoryPet.Hook\HiveoryPet.Hook.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+    <ItemGroup>
+      <RelayFiles Include="..\HiveoryPet.Hook\bin\$(Configuration)\net10.0-windows\win-x64\hiveory-pet-hook.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RelayFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <ItemGroup>
+    <InternalsVisibleTo Include="HiveoryPet.Tests" />
+    <Using Include="System.IO" />
+  </ItemGroup>
+</Project>
