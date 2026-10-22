@@ -1,16 +1,18 @@
 Third-party notices
 ===================
 
-Hiveory Pet adapts small parts of these MIT-licensed projects:
+Pluto adapts small parts of these projects (MIT unless noted):
 
 - coucou (https://github.com/louis-cfm/coucou): the agent event-name table, hook config
-  locations and formats (src/HiveoryPet/Agents/HookEvent.cs, AgentCatalog.cs, HookInstaller.cs).
+  locations and formats (src/Pluto.Core/Agents/HookEvent.cs, AgentCatalog.cs, HookInstaller.cs).
   The Coucou name, Mochi and its sounds are not used.
-- Agent marks in `src/HiveoryPet/Assets/Agents`, copied from Hiveory: LobeHub Icons
+- Agent marks in `src/Pluto/Assets/Agents`, copied from Hiveory: LobeHub Icons
   (https://github.com/lobehub/lobe-icons, MIT) and official GitHub organization avatars. Each mark remains its
   owner's trademark and is used only to identify that agent.
+- Doto (https://github.com/oliverlalan/Doto), the dot-matrix font of the Black and White themes, in
+  `src/Pluto/Assets/Fonts`: SIL Open Font License 1.1, full text in `src/Pluto/Assets/Fonts/OFL.txt`.
 - Mithu AI Companion (https://github.com/Srinath0369/Mithu-AI-Companion): the session state
-  machine and short activity texts (src/HiveoryPet/Agents/Tracker.cs, HookEvent.cs).
+  machine and short activity texts (src/Pluto.Core/Agents/Tracker.cs, HookEvent.cs).
 
 ---
 

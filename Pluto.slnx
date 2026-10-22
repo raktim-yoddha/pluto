@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Pluto.Core/Pluto.Core.csproj" />
+    <Project Path="src/Pluto.Hook/Pluto.Hook.csproj" />
+    <Project Path="src/Pluto/Pluto.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Pluto.Tests/Pluto.Tests.csproj" />
+  </Folder>
+</Solution>

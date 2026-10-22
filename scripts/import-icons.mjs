@@ -6,7 +6,7 @@ import { join } from 'node:path'
 
 const source = process.argv[2]
 if (!source) throw new Error('Pass the path to Hiveory\'s icon-data.ts')
-const out = join(import.meta.dirname, '..', 'src', 'HiveoryPet', 'Assets', 'Agents')
+const out = join(import.meta.dirname, '..', 'src', 'Pluto', 'Assets', 'Agents')
 mkdirSync(out, { recursive: true })
 const icons = [...readFileSync(source, 'utf8').matchAll(/"([a-z0-9-]+)": "data:image\/(svg\+xml|png);base64,([^"]+)"/g)]
 for (const [, id, type, data] of icons) {

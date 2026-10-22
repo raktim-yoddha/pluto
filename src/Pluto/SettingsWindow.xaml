@@ -1,0 +1,273 @@
+<Window
+    x:Class="Pluto.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Pluto"
+    xmlns:todos="using:Pluto.Todos"
+    Title="Pluto settings">
+
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TitleBar x:Name="Bar" Title="Pluto" Subtitle="Settings">
+            <TitleBar.IconSource>
+                <ImageIconSource ImageSource="{x:Bind local:Ui.Logo}" />
+            </TitleBar.IconSource>
+        </TitleBar>
+
+        <NavigationView
+            x:Name="Nav"
+            Grid.Row="1"
+            PaneDisplayMode="Left"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            IsPaneToggleButtonVisible="False"
+            OpenPaneLength="220"
+            SelectionChanged="OnNavChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="General" Tag="general" IsSelected="True">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE713;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="To Do" Tag="todo">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE9D5;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="History" Tag="history">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE81C;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="About" Tag="about">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE946;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <Grid>
+                <!-- General -->
+                <ScrollViewer x:Name="GeneralPage" Padding="36,0,36,0">
+                    <StackPanel MaxWidth="760" Padding="0,24,0,36" Spacing="4">
+                        <TextBlock Margin="0,0,0,4" FontFamily="{ThemeResource PlutoDisplayFont}" FontSize="28" FontWeight="SemiBold" Text="General" />
+
+                        <InfoBar
+                            IsOpen="{x:Bind local:Ui.HasText(ViewModel.Notice), Mode=OneWay}"
+                            Message="{x:Bind ViewModel.Notice, Mode=OneWay}"
+                            Severity="Informational"
+                            CloseButtonClick="OnNoticeClosed" />
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Appearance" />
+                        <local:SettingCard Glyph="&#xE790;" Header="Theme" Description="Windows follows your light or dark mode, on acrylic. Black and White are monochrome, set in dots.">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.ThemeChoice, Mode=TwoWay}" AutomationProperties.Name="Theme">
+                                <x:String>Windows</x:String>
+                                <x:String>Black</x:String>
+                                <x:String>White</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE7C4;" Header="Where Pluto lives" Description="In a notch on the top edge, or floating anywhere. Drag it to move it.">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.DockChoice, Mode=TwoWay}" AutomationProperties.Name="Where Pluto lives">
+                                <x:String>Top edge</x:String>
+                                <x:String>Floating</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Agents to watch" />
+                        <TextBlock
+                            Margin="1,-4,0,8"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            TextWrapping="Wrap"
+                            Text="Every coding agent shows up while it runs, including sessions inside the Claude and Codex apps. Turn one on here to also hear when it starts, finishes or needs you." />
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Agents}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:AgentToggle">
+                                    <local:SettingCard Image="{x:Bind local:Ui.IconFor(Spec)}" Header="{x:Bind Name}" Description="{x:Bind Detail, Mode=OneWay}">
+                                        <ToggleSwitch MinWidth="0" IsOn="{x:Bind IsOn, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="{x:Bind Name}" />
+                                    </local:SettingCard>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Hiveory" />
+                        <local:SettingCard Glyph="&#xE71B;" Header="Show Hiveory's agents" Description="{x:Bind ViewModel.HiveoryStatus, Mode=OneWay}">
+                            <ToggleSwitch MinWidth="0" IsOn="{x:Bind ViewModel.ShowHiveory, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="Show Hiveory's agents" />
+                        </local:SettingCard>
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Sound and startup" />
+                        <local:SettingCard Glyph="&#xE767;" Header="Sounds" Description="A tick when an agent starts, a chime when it's done, a ping when it needs you">
+                            <ToggleSwitch MinWidth="0" IsOn="{x:Bind ViewModel.Sounds, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="Sounds" />
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE7E8;" Header="Start with Windows" Description="Open Pluto when you sign in">
+                            <ToggleSwitch MinWidth="0" IsOn="{x:Bind ViewModel.StartWithWindows, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="Start with Windows" />
+                        </local:SettingCard>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- To Do -->
+                <ScrollViewer x:Name="TodoPage" Padding="36,0,36,0" Visibility="Collapsed">
+                    <StackPanel MaxWidth="760" Padding="0,24,0,36" Spacing="4">
+                        <TextBlock Margin="0,0,0,4" FontFamily="{ThemeResource PlutoDisplayFont}" FontSize="28" FontWeight="SemiBold" Text="To Do" />
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Your list" />
+                        <local:SettingCard Glyph="&#xE8AC;" Header="List title" Description="Shown above today's tasks">
+                            <TextBox MinWidth="200" Text="{x:Bind ViewModel.Todo.Title, Mode=TwoWay}" AutomationProperties.Name="List title" />
+                        </local:SettingCard>
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Daily reset" />
+                        <local:SettingCard Glyph="&#xE823;" Header="A new day starts at" Description="{x:Bind ViewModel.Todo.NextDay, Mode=OneWay}">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.Todo.ResetTimeIndex, Mode=TwoWay}" AutomationProperties.Name="A new day starts at">
+                                <x:String>Midnight</x:String>
+                                <x:String>1:00 AM</x:String>
+                                <x:String>2:00 AM</x:String>
+                                <x:String>3:00 AM</x:String>
+                                <x:String>4:00 AM</x:String>
+                                <x:String>5:00 AM</x:String>
+                                <x:String>6:00 AM</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE81C;" Header="Keep history for" Description="Past days older than this are let go">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.Todo.KeepIndex, Mode=TwoWay}" AutomationProperties.Name="Keep history for">
+                                <x:String>1 week</x:String>
+                                <x:String>2 weeks</x:String>
+                                <x:String>1 month</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Checked tasks" />
+                        <local:SettingCard Glyph="&#xE8CB;" Header="When you check a task" Description="Keep its place, or send it to the bottom in the order you finish">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.Todo.OrderIndex, Mode=TwoWay}" AutomationProperties.Name="When you check a task">
+                                <x:String>Stays in place</x:String>
+                                <x:String>Moves to the bottom</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE73E;" Header="How a checked task looks">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.Todo.StyleIndex, Mode=TwoWay}" AutomationProperties.Name="How a checked task looks">
+                                <x:String>Struck through</x:String>
+                                <x:String>Dimmed</x:String>
+                                <x:String>Just the check</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE9D9;" Header="Progress" Description="Above the list">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.Todo.ProgressIndex, Mode=TwoWay}" AutomationProperties.Name="Progress">
+                                <x:String>Bar and count</x:String>
+                                <x:String>Bar</x:String>
+                                <x:String>Count</x:String>
+                                <x:String>Hidden</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Today" />
+                        <local:SettingCard Glyph="&#xE7C3;" Header="Start a new day now" Description="Today's list moves to History and a fresh one begins">
+                            <Button Content="Start new day" Click="OnNewDay" />
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE777;" Header="Uncheck everything" Description="Every task on today's list goes back to open">
+                            <Button Content="Uncheck all" Click="OnUncheckAll" />
+                        </local:SettingCard>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- History -->
+                <ScrollViewer x:Name="HistoryPage" Padding="36,0,36,0" Visibility="Collapsed">
+                    <StackPanel MaxWidth="760" Padding="0,24,0,36" Spacing="4">
+                        <Grid Margin="0,0,0,12">
+                            <TextBlock FontFamily="{ThemeResource PlutoDisplayFont}" FontSize="28" FontWeight="SemiBold" Text="History" />
+                            <Button HorizontalAlignment="Right" VerticalAlignment="Center" Content="Clear history" IsEnabled="{x:Bind ViewModel.Todo.HasHistory, Mode=OneWay}">
+                                <Button.Flyout>
+                                    <Flyout x:Name="ClearFlyout">
+                                        <StackPanel Spacing="12">
+                                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Clear every past day?" />
+                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="This can't be undone." />
+                                            <Button Content="Clear history" Style="{StaticResource AccentButtonStyle}" Click="OnClearHistory" />
+                                        </StackPanel>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                        </Grid>
+                        <TextBlock
+                            Style="{StaticResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="No past days yet. When a new day starts, today's list is kept here."
+                            Visibility="{x:Bind local:Ui.Shown(ViewModel.Todo.IsHistoryEmpty), Mode=OneWay}" />
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Todo.History}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="todos:DayViewModel">
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                        <Expander.Header>
+                                            <Grid Padding="0,12,0,12" ColumnSpacing="16">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Day}" />
+                                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Title}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontFamily="{ThemeResource PlutoDisplayFont}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Summary}" />
+                                            </Grid>
+                                        </Expander.Header>
+                                        <StackPanel Spacing="10">
+                                            <ItemsControl ItemsSource="{x:Bind Todos}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="todos:TodoItem">
+                                                        <Grid Padding="0,4,0,4" ColumnSpacing="12">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <FontIcon FontSize="14" Glyph="{x:Bind local:Ui.CheckGlyph(Completed)}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                            <TextBlock Grid.Column="1" Text="{x:Bind Text}" TextWrapping="Wrap" />
+                                                            <TextBlock Grid.Column="2" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{x:Bind CompletedAt}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Button Content="Copy unfinished to today" Tag="{x:Bind Id}" Click="OnRestore" Visibility="{x:Bind local:Ui.Shown(HasUnfinished)}" />
+                                                <Button Content="Delete day" Tag="{x:Bind Id}" Click="OnDeleteDay" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- About -->
+                <ScrollViewer x:Name="AboutPage" Padding="36,0,36,0" Visibility="Collapsed">
+                    <StackPanel MaxWidth="760" Padding="0,40,0,36" Spacing="16">
+                        <Image Width="96" Height="96" HorizontalAlignment="Left" Source="{x:Bind local:Ui.Logo}" AutomationProperties.Name="Pluto" />
+                        <StackPanel Spacing="2">
+                            <TextBlock FontFamily="{ThemeResource PlutoDisplayFont}" FontSize="34" FontWeight="SemiBold" Text="Pluto" />
+                            <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Version}" />
+                        </StackPanel>
+                        <TextBlock
+                            MaxWidth="520"
+                            HorizontalAlignment="Left"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            TextWrapping="Wrap"
+                            Text="A small friend at the top of your screen that keeps an eye on every coding agent on your PC, and on today's list." />
+                        <Button Content="Quit Pluto" Click="OnQuit" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </NavigationView>
+    </Grid>
+</Window>
