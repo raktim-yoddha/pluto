@@ -22,9 +22,6 @@ public sealed record PetSettings
 
     public bool Sounds { get; set; } = true;
 
-    /// <summary>Follow Hiveory's agents (the user clicked Connect).</summary>
-    public bool Hiveory { get; set; }
-
     public static string Folder { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HiveoryPet");
 
     private static string FilePath => Path.Combine(Folder, "settings.json");

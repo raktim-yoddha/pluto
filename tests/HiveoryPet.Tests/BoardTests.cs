@@ -30,11 +30,31 @@ public class BoardTests
     }
 
     [Fact]
-    public void Without_the_link_a_hiveory_session_still_shows_and_says_so()
+    public void Without_the_link_a_hiveory_session_shows_nowhere()
     {
         var t = new Tracker();
         t.Apply(E("claude", "s1", "UserPromptSubmit", hiveory: "a1"), T0);
-        Assert.Equal("shop · in Hiveory", Board.Rows(t.Sessions(T0), [], T0).Single().Subtitle);
+        Assert.Empty(Board.Rows(t.Sessions(T0), [], T0));
+    }
+
+    [Fact]
+    public void Agents_of_both_hiveory_builds_show_by_name_and_a_finished_one_says_done()
+    {
+        var hiveory = new[]
+        {
+            new HiveoryAgent("a1", "Maple", "Claude Code", "Shop", "Primary", PetState.Idle, "claude", "Hiveory"),
+            new HiveoryAgent("b7", "Juniper", "Codex", "Pet", "fix-tabs", PetState.Working, "codex", "Hiveory Dev"),
+        };
+        var done = new Dictionary<string, DateTimeOffset> { ["a1"] = T0.AddMinutes(-2) };
+
+        var rows = Board.Rows([], hiveory, T0, null, done);
+
+        var juniper = rows.Single(r => r.Title == "Juniper");
+        Assert.Equal("Codex · Pet › fix-tabs · Dev", juniper.Subtitle);
+        var maple = rows.Single(r => r.Title == "Maple");
+        Assert.True(maple.JustFinished);
+        Assert.Equal("Done", maple.Activity);
+        Assert.Equal("Maple is done", Board.Headline([maple]).Title);
     }
 
     [Fact]

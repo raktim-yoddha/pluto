@@ -20,29 +20,39 @@ public sealed record Row(
 public sealed record Headline(string Title, string Subtitle, PetState State, bool JustFinished);
 
 /// <summary>
-/// Puts Hiveory's agents, the sessions seen through hooks and the agents found running into one list. A hook session
-/// inside a Hiveory agent (HIVEORY_INSTANCE_ID) shows once, on the Hiveory row, which takes its activity text; a
-/// running agent shows only when neither covers it (no hooks for it yet, or an app's own session). Pure.
+/// Puts every agent into one list, in two parts. Hiveory: the agents of each linked Hiveory, by their own names, with
+/// the activity text their hooks report (HIVEORY_INSTANCE_ID) when there is one. Outside Hiveory: the sessions seen
+/// through hooks and the agents found running, minus anything that runs in Hiveory, which shows only through its link.
+/// A running agent that a hook session already covers shows once. Pure.
 /// </summary>
 public static class Board
 {
     /// <summary>A finished turn is announced this long.</summary>
     public static readonly TimeSpan FinishedFor = TimeSpan.FromMinutes(10);
 
-    public static IReadOnlyList<Row> Rows(IReadOnlyList<Session> sessions, IReadOnlyList<HiveoryAgent> hiveory, DateTimeOffset now, IReadOnlyList<RunningAgent>? running = null)
+    /// <param name="hiveoryDone">When each Hiveory agent last went from working to idle.</param>
+    public static IReadOnlyList<Row> Rows(
+        IReadOnlyList<Session> sessions,
+        IReadOnlyList<HiveoryAgent> hiveory,
+        DateTimeOffset now,
+        IReadOnlyList<RunningAgent>? running = null,
+        IReadOnlyDictionary<string, DateTimeOffset>? hiveoryDone = null)
     {
         var rows = new List<Row>();
         var byInstance = sessions.Where(s => s.HiveoryInstance is not null).GroupBy(s => s.HiveoryInstance!).ToDictionary(g => g.Key, g => g.MaxBy(s => s.Last)!);
+        var bothApps = hiveory.Select(a => a.App).Distinct().Count() > 1;
         foreach (var a in hiveory)
         {
             byInstance.TryGetValue(a.Id, out var s);
-            var done = a.State == PetState.Idle && s?.DoneAt is { } d && now - d < FinishedFor;
+            var doneAt = s?.DoneAt is { } d1 ? d1 : hiveoryDone?.GetValueOrDefault(a.Id);
+            var done = a.State == PetState.Idle && doneAt is { } d && now - d < FinishedFor;
             var activity = s is not null && (s.State != PetState.Idle || done) ? s.Activity
-                : a.State switch { PetState.Working => "Working", PetState.NeedsYou => "Waiting for you", _ => "Ready" };
+                : a.State switch { PetState.Working => "Working", PetState.NeedsYou => "Waiting for you", _ when done => "Done", _ => "Ready" };
+            var place = a.Worktree.Length > 0 ? $"{a.Workspace} › {a.Worktree}" : a.Workspace;
             rows.Add(new Row(
-                "hiveory/" + a.Id,
+                $"hiveory/{a.App}/{a.Id}",
                 a.Name,
-                string.Join(" · ", new[] { a.Cli, a.Worktree.Length > 0 ? $"{a.Workspace} › {a.Worktree}" : a.Workspace }.Where(x => x.Length > 0)),
+                string.Join(" · ", new[] { a.Cli, place, bothApps && a.App != "Hiveory" ? "Dev" : string.Empty }.Where(x => x.Length > 0)),
                 activity,
                 a.State,
                 done,
@@ -52,14 +62,14 @@ public static class Board
                 a.CliId ?? string.Empty));
         }
 
-        var shown = hiveory.Select(a => a.Id).ToHashSet();
-        foreach (var s in sessions.Where(s => s.HiveoryInstance is null || !shown.Contains(s.HiveoryInstance)))
+        // Hiveory's own sessions never show outside it: with the link they're above, without it nowhere.
+        foreach (var s in sessions.Where(s => s.HiveoryInstance is null))
         {
             var done = s.State == PetState.Idle && s.DoneAt is { } d && now - d < FinishedFor;
             rows.Add(new Row(
                 s.Key,
                 AgentCatalog.Name(s.Agent),
-                s.HiveoryInstance is null ? s.Project : $"{s.Project} · in Hiveory",
+                s.Project,
                 s.Activity,
                 s.State,
                 done,
@@ -71,8 +81,8 @@ public static class Board
 
         foreach (var r in running ?? [])
         {
-            var covered = (r.Host == "Hiveory" && hiveory.Count > 0)
-                || sessions.Any(s => s.Agent == r.Agent && string.Equals(s.Project, r.Project, StringComparison.OrdinalIgnoreCase));
+            var covered = r.Host == "Hiveory"
+                || sessions.Any(s => s.HiveoryInstance is null && s.Agent == r.Agent && string.Equals(s.Project, r.Project, StringComparison.OrdinalIgnoreCase));
             if (covered)
             {
                 continue;

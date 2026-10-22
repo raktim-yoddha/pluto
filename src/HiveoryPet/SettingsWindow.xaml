@@ -65,14 +65,10 @@
                 </ItemsControl>
 
                 <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Hiveory" />
-                <local:SettingCard Glyph="&#xE71B;" Header="Show Hiveory's agents" Description="{x:Bind ViewModel.HiveoryStatus, Mode=OneWay}">
-                    <ToggleSwitch
-                        MinWidth="0"
-                        IsOn="{x:Bind ViewModel.WatchHiveory, Mode=TwoWay}"
-                        OnContent=""
-                        OffContent=""
-                        AutomationProperties.Name="Show Hiveory's agents" />
-                </local:SettingCard>
+                <local:SettingCard
+                    Glyph="&#xE71B;"
+                    Header="Hiveory's agents, by name"
+                    Description="{x:Bind ViewModel.HiveoryStatus, Mode=OneWay}" />
 
                 <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="General" />
                 <local:SettingCard Glyph="&#xE767;" Header="Sounds" Description="A soft chime when an agent finishes or needs you">

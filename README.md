@@ -35,8 +35,14 @@ Hiveory, sounds, start with Windows. Turning an agent on adds a small hook to th
 `~/.copilot/hooks/hiveory-pet.json`), next to yours, and keeps a copy of the original file the first time
 (`*.before-hiveory-pet`). Turning it off removes only its own entries. Codex asks you to trust new hooks once (`/hooks`).
 
-**Hiveory:** turn on "Show Hiveory's agents" (or click it in the list). Hiveory (from its next release, Settings ›
-Agents › Hiveory Pet) shares its running agents' names and statuses over a local link; nothing else.
+**Hiveory:** in Hiveory (from its next release, and any dev build), turn on Settings › Agents › Let Hiveory Pet see
+your agents. The pet connects on its own, to the release and a dev build at the same time if both run, and the
+list gets two tabs: **Hiveory** (every Hiveory agent by its pet name, CLI, workspace and worktree; "Dev" marks a dev
+build's) and **Outside Hiveory** (every other agent). Point at a tab to open it. Hiveory shares names and statuses
+only, over a local link.
+
+**Moments:** whenever any agent finishes or needs you, the pet pops out, says who ("Maple is done", "Juniper needs
+you") and plays a soft sound; the list jumps to the tab where it happened.
 
 ## How it works
 
@@ -78,7 +84,7 @@ access except Hiveory's link on 127.0.0.1.
 Requires Windows 10/11 and the .NET 10 SDK.
 
 ```powershell
-dotnet test tests/HiveoryPet.Tests  # 41 tests
+dotnet test tests/HiveoryPet.Tests  # 42 tests
 dotnet build src/HiveoryPet          # then run src/HiveoryPet/bin/Debug/net10.0-windows10.0.26100.0/win-x64/HiveoryPet.exe
 pwsh scripts/publish.ps1             # out/HiveoryPet-win-x64.zip, self-contained (NativeAOT relay needs the VS C++ workload)
 ```

@@ -15,6 +15,7 @@ public sealed class Pet : IDisposable
     private readonly HiveoryLink _link;
     private readonly bool _persist;
     private readonly CancellationTokenSource _stop = new();
+    private readonly Dictionary<string, DateTimeOffset> _hiveoryDone = [];
     private Dictionary<string, PetState> _hiveoryBefore = [];
     private IReadOnlyList<RunningAgent> _running = [];
 
@@ -25,15 +26,16 @@ public sealed class Pet : IDisposable
         _persist = settings is null;
         Settings = settings ?? PetSettings.Load();
         _pipe = new PipeServer(bytes => _post(() => Receive(bytes)));
-        _link = new HiveoryLink((agents, state) => _post(() => OnHiveory(agents)));
+        _link = new HiveoryLink(() => _post(() => OnHiveory(_link!.Agents)));
     }
 
-    /// <summary>Something changed; the moment (if any) is worth a sound and a peek. The name says who.</summary>
-    public event Action<Moment, string>? Changed;
+    /// <summary>Something changed; the moment (if any) is worth a sound and a peek. It says who, and whether in Hiveory.</summary>
+    public event Action<Moment, string, bool>? Changed;
 
     public PetSettings Settings { get; private set; }
 
-    public LinkState Link => _link.State;
+    /// <summary>The Hiveory apps whose agents the pet follows right now.</summary>
+    public IReadOnlyList<string> HiveoryApps => _link.Connected;
 
     /// <summary>The stable copy of the relay every agent's hook runs.</summary>
     public static string Relay { get; } = Path.Combine(PetSettings.Folder, "bin", "hiveory-pet-hook.exe");
@@ -45,13 +47,10 @@ public sealed class Pet : IDisposable
         EnsureRelay();
         _pipe.Start();
         _ = Task.Run(ScanAsync);
-        if (Settings.Hiveory)
-        {
-            _link.Start();
-        }
+        _link.Start(); // Hiveory decides: its "Let Hiveory Pet see your agents" switch opens or closes the link
     }
 
-    public IReadOnlyList<Row> Rows() => Board.Rows(_tracker.Sessions(DateTimeOffset.Now), _link.Agents, DateTimeOffset.Now, _running);
+    public IReadOnlyList<Row> Rows() => Board.Rows(_tracker.Sessions(DateTimeOffset.Now), _link.Agents, DateTimeOffset.Now, _running, _hiveoryDone);
 
     public void Update(Func<PetSettings, PetSettings> change)
     {
@@ -60,21 +59,6 @@ public sealed class Pet : IDisposable
         {
             Settings.Save();
         }
-    }
-
-    public void SetHiveory(bool on)
-    {
-        Update(s => s with { Hiveory = on });
-        if (on)
-        {
-            _link.Start();
-        }
-        else
-        {
-            _link.Stop();
-        }
-
-        Changed?.Invoke(Moment.None, string.Empty);
     }
 
     /// <summary>Adds or removes an agent's hooks; returns why it couldn't, or null.</summary>
@@ -119,7 +103,7 @@ public sealed class Pet : IDisposable
                     if (!running.SequenceEqual(_running))
                     {
                         _running = running;
-                        Changed?.Invoke(Moment.None, string.Empty);
+                        Changed?.Invoke(Moment.None, string.Empty, false);
                     }
                 });
             }
@@ -141,14 +125,15 @@ public sealed class Pet : IDisposable
         }
 
         var moment = _tracker.Apply(e, DateTimeOffset.Now);
-        Changed?.Invoke(moment, AgentCatalog.Name(e.Agent));
+        Changed?.Invoke(moment, AgentCatalog.Name(e.Agent), e.HiveoryInstance is not null);
     }
 
+    /// <summary>A Hiveory agent that finished or now needs you is a moment too; when it finished is kept for the list.</summary>
     private void OnHiveory(IReadOnlyList<HiveoryAgent> agents)
     {
-        // A Hiveory agent that finished or needs you counts as a moment too.
         var moment = Moment.None;
         var who = string.Empty;
+        var now = DateTimeOffset.Now;
         foreach (var a in agents)
         {
             if (!_hiveoryBefore.TryGetValue(a.Id, out var before) || before == a.State)
@@ -160,14 +145,22 @@ public sealed class Pet : IDisposable
             {
                 (moment, who) = (Moment.NeedsYou, a.Name);
             }
-            else if (a.State == PetState.Idle && before == PetState.Working && moment == Moment.None)
+            else if (a.State == PetState.Idle && before == PetState.Working)
             {
-                (moment, who) = (Moment.Finished, a.Name);
+                _hiveoryDone[a.Id] = now;
+                if (moment == Moment.None)
+                {
+                    (moment, who) = (Moment.Finished, a.Name);
+                }
+            }
+            else if (a.State == PetState.Working)
+            {
+                _hiveoryDone.Remove(a.Id);
             }
         }
 
         _hiveoryBefore = agents.ToDictionary(a => a.Id, a => a.State);
-        Changed?.Invoke(moment, who);
+        Changed?.Invoke(moment, who, true);
     }
 
     /// <summary>

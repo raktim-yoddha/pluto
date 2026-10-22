@@ -1,4 +1,3 @@
-
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -8,63 +7,83 @@ using HiveoryPet.Agents;
 namespace HiveoryPet.Hiveory;
 
 /// <summary>A Hiveory agent as Hiveory's pet link reports it: names and status only, never its terminal or files.</summary>
-public sealed record HiveoryAgent(string Id, string Name, string Cli, string Workspace, string Worktree, PetState State, string? CliId = null);
-
-public enum LinkState { Off, NotInstalled, NotRunning, Connected }
+/// <param name="App">Which Hiveory it runs in: "Hiveory" or "Hiveory Dev".</param>
+public sealed record HiveoryAgent(string Id, string Name, string Cli, string Workspace, string Worktree, PetState State, string? CliId = null, string App = "Hiveory");
 
 /// <summary>
-/// Follows Hiveory's agents over its pet link: Hiveory writes <c>pet-link.json</c> (port and token) to its own
-/// per-user Runtime folder and streams its agents' state from 127.0.0.1 as Server-Sent Events. Reading that file is
-/// the pairing: only this Windows user can. Reconnects on its own while turned on.
+/// Follows the agents of every Hiveory on this PC (the release and a dev build, each with its own data folder) over
+/// its pet link: Hiveory writes <c>pet-link.json</c> (port and token) to its per-user Runtime folder while "Let
+/// Hiveory Pet see your agents" is on, and streams its agents from 127.0.0.1 as Server-Sent Events. Reading that file
+/// is the pairing: only this Windows user can. Each Hiveory is followed on its own and reconnects on its own.
 /// </summary>
-public sealed class HiveoryLink(Action<IReadOnlyList<HiveoryAgent>, LinkState> onChange) : IDisposable
+public sealed class HiveoryLink(Action onChange) : IDisposable
 {
-    private static readonly TimeSpan Retry = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Retry = TimeSpan.FromSeconds(3);
 
-    private CancellationTokenSource? _run;
+    private static readonly (string App, string Folder)[] Apps =
+    [
+        ("Hiveory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Hiveory")),
+        ("Hiveory Dev", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Hiveory Dev")),
+    ];
 
-    public LinkState State { get; private set; } = LinkState.Off;
+    private readonly CancellationTokenSource _stop = new();
+    private readonly Lock _gate = new();
+    private readonly Dictionary<string, IReadOnlyList<HiveoryAgent>> _byApp = [];
+    private bool _started;
 
-    public IReadOnlyList<HiveoryAgent> Agents { get; private set; } = [];
+    /// <summary>Some Hiveory has run on this PC (its data folder exists).</summary>
+    public static bool Installed => Apps.Any(a => Directory.Exists(a.Folder));
 
-    /// <summary>Hiveory has run on this PC (its data folder exists).</summary>
-    public static bool Installed => Folders().Any(Directory.Exists);
+    /// <summary>The Hiveory apps followed right now ("Hiveory", "Hiveory Dev").</summary>
+    public IReadOnlyList<string> Connected
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _byApp.Keys.Order()];
+            }
+        }
+    }
+
+    /// <summary>Every followed Hiveory's running agents.</summary>
+    public IReadOnlyList<HiveoryAgent> Agents
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _byApp.Values.SelectMany(a => a)];
+            }
+        }
+    }
 
     public void Start()
     {
-        if (_run is not null)
+        if (_started)
         {
             return;
         }
 
-        _run = new CancellationTokenSource();
-        _ = Task.Run(() => LoopAsync(_run.Token));
+        _started = true;
+        foreach (var (app, folder) in Apps)
+        {
+            _ = Task.Run(() => FollowAsync(app, folder, _stop.Token));
+        }
     }
 
-    public void Stop()
-    {
-        _run?.Cancel();
-        _run = null;
-        Set([], LinkState.Off);
-    }
+    public void Dispose() => _stop.Cancel();
 
-    public void Dispose() => _run?.Cancel();
-
-    private async Task LoopAsync(CancellationToken stop)
+    private async Task FollowAsync(string app, string folder, CancellationToken stop)
     {
         using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         while (!stop.IsCancellationRequested)
         {
             try
             {
-                if (ReadEndpoint() is not { } endpoint)
+                if (ReadEndpoint(folder) is { } endpoint)
                 {
-                    Set([], Installed ? LinkState.NotRunning : LinkState.NotInstalled);
-                }
-                else
-                {
-                    await StreamAsync(http, endpoint, stop);
-                    Set([], LinkState.NotRunning);
+                    await StreamAsync(http, app, endpoint, stop);
                 }
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested)
@@ -73,20 +92,19 @@ public sealed class HiveoryLink(Action<IReadOnlyList<HiveoryAgent>, LinkState> o
             }
             catch (Exception e)
             {
-                // Hiveory closed, restarted or sent something odd: say so once in the log and keep trying.
-                if (State != LinkState.NotRunning)
+                // Hiveory closed, restarted or sent something odd: keep trying.
+                if (Connected.Contains(app))
                 {
-                    Log.Write("Hiveory link dropped", e);
+                    Log.Write($"{app} link dropped", e);
                 }
-
-                Set([], LinkState.NotRunning);
             }
 
+            Set(app, null);
             await Task.Delay(Retry, stop).ContinueWith(_ => { }, TaskScheduler.Default);
         }
     }
 
-    private async Task StreamAsync(HttpClient http, Endpoint endpoint, CancellationToken stop)
+    private async Task StreamAsync(HttpClient http, string app, Endpoint endpoint, CancellationToken stop)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{endpoint.Port}/pet/events");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", endpoint.Token);
@@ -95,15 +113,15 @@ public sealed class HiveoryLink(Action<IReadOnlyList<HiveoryAgent>, LinkState> o
         using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(stop));
         while (await reader.ReadLineAsync(stop) is { } line)
         {
-            if (line.StartsWith("data: ", StringComparison.Ordinal) && Parse(line[6..]) is { } agents)
+            if (line.StartsWith("data: ", StringComparison.Ordinal) && Parse(line[6..], app) is { } agents)
             {
-                Set(agents, LinkState.Connected);
+                Set(app, agents);
             }
         }
     }
 
     /// <summary>One frame of the stream: <c>{"agents": [...]}</c>. Pure; unit-tested.</summary>
-    public static IReadOnlyList<HiveoryAgent>? Parse(string json)
+    public static IReadOnlyList<HiveoryAgent>? Parse(string json, string app = "Hiveory")
     {
         var frame = JsonSerializer.Deserialize(json, LinkJson.Default.Frame);
         return frame?.Agents?
@@ -115,47 +133,46 @@ public sealed class HiveoryLink(Action<IReadOnlyList<HiveoryAgent>, LinkState> o
                 a.Workspace ?? string.Empty,
                 a.Worktree ?? string.Empty,
                 a.Status switch { "working" => PetState.Working, "waiting-for-you" => PetState.NeedsYou, _ => PetState.Idle },
-                a.CliId ?? KnownAgents.IdForName(a.Cli ?? string.Empty)))
+                a.CliId ?? KnownAgents.IdForName(a.Cli ?? string.Empty),
+                app))
             .ToList();
     }
 
-    private void Set(IReadOnlyList<HiveoryAgent> agents, LinkState state)
+    /// <summary>A Hiveory's agents, or null when it isn't followed (closed, link off).</summary>
+    private void Set(string app, IReadOnlyList<HiveoryAgent>? agents)
     {
-        if (state == State && agents.SequenceEqual(Agents))
+        lock (_gate)
         {
-            return;
-        }
-
-        Agents = agents;
-        State = state;
-        onChange(agents, state);
-    }
-
-    private static IEnumerable<string> Folders()
-    {
-        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return [Path.Combine(local, "Hiveory"), Path.Combine(local, "Hiveory Dev")];
-    }
-
-    private static Endpoint? ReadEndpoint()
-    {
-        foreach (var folder in Folders())
-        {
-            try
+            var had = _byApp.TryGetValue(app, out var before);
+            if (agents is null ? !had : had && before!.SequenceEqual(agents))
             {
-                var endpoint = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(folder, "Runtime", "pet-link.json")), LinkJson.Default.Endpoint);
-                if (endpoint is { Port: > 0 and < 65536, Token.Length: > 0 })
-                {
-                    return endpoint;
-                }
+                return;
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+
+            if (agents is null)
             {
-                // not this one
+                _byApp.Remove(app);
+            }
+            else
+            {
+                _byApp[app] = agents;
             }
         }
 
-        return null;
+        onChange();
+    }
+
+    private static Endpoint? ReadEndpoint(string folder)
+    {
+        try
+        {
+            var endpoint = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(folder, "Runtime", "pet-link.json")), LinkJson.Default.Endpoint);
+            return endpoint is { Port: > 0 and < 65536, Token.Length: > 0 } ? endpoint : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null; // not running, or its link is off
+        }
     }
 
     internal sealed record Endpoint(int Port, string Token);

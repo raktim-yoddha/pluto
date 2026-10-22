@@ -110,9 +110,26 @@
                 <StackPanel.OpacityTransition>
                     <ScalarTransition Duration="0:0:0.25" />
                 </StackPanel.OpacityTransition>
+                <!-- With a Hiveory linked: its agents, and every other one. Pointing at a tab opens it. -->
+                <SelectorBar
+                    x:Name="Sections"
+                    Margin="4,0,4,2"
+                    Visibility="{x:Bind local:Ui.Shown(ViewModel.HiveoryLinked), Mode=OneWay}"
+                    SelectionChanged="OnSectionChanged"
+                    AutomationProperties.Name="Agents in Hiveory or outside it">
+                    <SelectorBarItem
+                        x:Name="HiveoryItem"
+                        Text="{x:Bind ViewModel.HiveoryTab, Mode=OneWay}"
+                        IsSelected="True"
+                        PointerEntered="OnSectionHover" />
+                    <SelectorBarItem
+                        x:Name="OutsideItem"
+                        Text="{x:Bind ViewModel.OutsideTab, Mode=OneWay}"
+                        PointerEntered="OnSectionHover" />
+                </SelectorBar>
                 <ListView
                     MaxHeight="384"
-                    ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}"
+                    ItemsSource="{x:Bind ViewModel.VisibleRows, Mode=OneWay}"
                     SelectionMode="None"
                     IsItemClickEnabled="True"
                     ItemClick="OnRowClick"
@@ -156,13 +173,8 @@
                     Text="{x:Bind ViewModel.EmptyText, Mode=OneWay}"
                     Style="{StaticResource CaptionTextBlockStyle}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap"
                     Visibility="{x:Bind local:Ui.Shown(ViewModel.IsEmpty), Mode=OneWay}" />
-                <HyperlinkButton
-                    Margin="6,0,6,0"
-                    Content="Show Hiveory's agents"
-                    Visibility="{x:Bind local:Ui.Shown(ViewModel.CanConnect), Mode=OneWay}"
-                    Click="OnConnectClick"
-                    AutomationProperties.Name="Show Hiveory's agents" />
             </StackPanel>
         </StackPanel>
     </Grid>

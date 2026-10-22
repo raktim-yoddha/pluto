@@ -67,6 +67,7 @@ public class ViewModelTests
         Assert.Equal([Moment.Finished], moments);
         Assert.Equal(Mood.Happy, vm.Mood);
         Assert.Equal("Claude Code is done", vm.Title);
+        Assert.StartsWith("Done in", vm.Subtitle); // the pet times turns with the real clock
 
         _now = _now.AddMinutes(11);
         vm.Refresh();
@@ -83,7 +84,7 @@ public class SettingsTests
         // An old file (with the six spots) still loads: unknown keys are ignored.
         var s = System.Text.Json.JsonSerializer.Deserialize("""{"Spot":"BottomLeft","Hiveory":true}""", SettingsJson.Default.PetSettings)!;
         Assert.Equal(Dock.Notch, s.Dock);
-        Assert.True(s.Hiveory);
+        Assert.True(s.Sounds);
         Assert.True(s.Sounds);
         Assert.Null(s.FloatX);
     }

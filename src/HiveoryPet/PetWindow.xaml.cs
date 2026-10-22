@@ -137,9 +137,12 @@ public sealed partial class PetWindow : Window
     {
         switch (e.PropertyName)
         {
-            case nameof(PetViewModel.Look) or nameof(PetViewModel.Dock) or nameof(PetViewModel.Rows)
-                or nameof(PetViewModel.IsEmpty) or nameof(PetViewModel.CanConnect):
+            case nameof(PetViewModel.Look) or nameof(PetViewModel.Dock) or nameof(PetViewModel.VisibleRows)
+                or nameof(PetViewModel.IsEmpty) or nameof(PetViewModel.HiveoryLinked):
                 Arrange();
+                break;
+            case nameof(PetViewModel.Section):
+                Sections.SelectedItem = ViewModel.Section == Section.Hiveory ? HiveoryItem : OutsideItem;
                 break;
             case nameof(PetViewModel.Mood):
                 Face.Mood = SoloFace.Mood = ViewModel.Mood;
@@ -156,7 +159,8 @@ public sealed partial class PetWindow : Window
             return;
         }
 
-        if (moment == Moment.NeedsYou)
+        // A sound for every agent that waits for you or finishes, wherever it runs.
+        if (moment is Moment.NeedsYou or Moment.Failed)
         {
             Chime.NeedsYou();
         }
@@ -413,7 +417,11 @@ public sealed partial class PetWindow : Window
 
     // ── Actions ────────────────────────────────────────────────────────────────────────────
 
-    private void OnConnectClick(object sender, RoutedEventArgs e) => ViewModel.Connect();
+    private void OnSectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) =>
+        ViewModel.Section = sender.SelectedItem == OutsideItem ? Section.Outside : Section.Hiveory;
+
+    /// <summary>Pointing at a tab is enough to open it.</summary>
+    private void OnSectionHover(object sender, PointerRoutedEventArgs e) => Sections.SelectedItem = (SelectorBarItem)sender;
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
 
