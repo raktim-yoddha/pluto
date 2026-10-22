@@ -40,6 +40,9 @@ public sealed class Session(string agent, string id, DateTimeOffset now)
     /// <summary>The process whose window holds this session (a terminal, an editor, the Claude app), or 0.</summary>
     public int WindowPid { get; set; }
 
+    /// <summary>The app or terminal it runs in ("Terminal", "VS Code"), from its window's program; null if unknown.</summary>
+    public string? Host { get; set; }
+
     internal HashSet<string> FinishedTools { get; } = [];
 }
 
@@ -57,6 +60,8 @@ public sealed class Tracker
     public static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(30);
 
     private readonly Dictionary<string, Session> _sessions = [];
+
+    public Session? Find(string agent, string id) => _sessions.GetValueOrDefault($"{agent}/{id}");
 
     public Moment Apply(HookEvent e, DateTimeOffset now)
     {

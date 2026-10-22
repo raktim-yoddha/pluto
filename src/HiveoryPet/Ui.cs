@@ -15,6 +15,10 @@ public static class Ui
 
     public static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
 
+    public static Visibility Shown(string? text) => Shown(!string.IsNullOrEmpty(text));
+
+    public static Visibility ShownEither(string? first, string? second) => Shown(!string.IsNullOrEmpty(first) || !string.IsNullOrEmpty(second));
+
     public static bool HasText(string? text) => !string.IsNullOrEmpty(text);
 
     /// <summary>A row's status: a progress ring while working, a caution dot when it needs you, a success dot just after.</summary>
@@ -57,7 +61,7 @@ public static class Ui
 
     public static ImageSource? IconFor(AgentSpec spec) => Icon(spec.Id);
 
-    /// <summary>"Editing Cart.cs · shop", or just one of them.</summary>
-    public static string Detail(string activity, string subtitle) =>
-        string.IsNullOrEmpty(subtitle) ? activity : string.IsNullOrEmpty(activity) ? subtitle : $"{activity} · {subtitle}";
+    /// <summary>"shop · Editing Cart.cs", or just one of them.</summary>
+    public static string Detail(string first, string second) =>
+        string.IsNullOrEmpty(second) ? first : string.IsNullOrEmpty(first) ? second : $"{first} · {second}";
 }

@@ -54,7 +54,7 @@ public class ScannerTests(ITestOutputHelper output)
             new RunningAgent(21, "codex", string.Empty, "Codex app"),
             new RunningAgent(31, "claude", "hive", "Hiveory"),
             new RunningAgent(32, "codex", "hive", "Hiveory"),
-            new RunningAgent(42, "gemini", "api", null),
+            new RunningAgent(42, "gemini", "api", "Terminal"),
         ], found);
     }
 
@@ -70,9 +70,11 @@ public class ScannerTests(ITestOutputHelper output)
         var rows = Board.Rows(t.Sessions(now), hiveory, now, running);
 
         Assert.Single(rows, r => r.Key == "claude-desktop/s"); // the hooked Code-tab session, once
-        Assert.Contains(rows, r => r.Title == "Claude app" && r.Subtitle == "web · in Claude app" && r.Icon == "claude");
-        Assert.Contains(rows, r => r.Title == "Gemini CLI" && r.Subtitle == "api" && r.Icon == "gemini");
-        Assert.DoesNotContain(rows, r => r.Subtitle.Contains("in Hiveory")); // the linked Hiveory shows them itself
+        // What it is, where it runs, which folder: a Claude app session needs no "where", its title says it.
+        Assert.Contains(rows, r => r.Title == "Claude app" && r.Where == string.Empty && r.Place == "web" && r.Icon == "claude");
+        Assert.Contains(rows, r => r.Title == "Gemini CLI" && r.Where == "Terminal" && r.Place == "api" && r.Icon == "gemini");
+        Assert.Contains(rows, r => r.Title == "Codex" && r.Where == "Codex app");
+        Assert.DoesNotContain(rows, r => r.Where == "Hiveory"); // Hiveory's agents come only through its link
         Assert.Contains(rows, r => r.Title == "Maple" && r.Icon == "claude");
     }
 

@@ -24,7 +24,8 @@ public class BoardTests
         Assert.Equal(2, rows.Count);
         var maple = rows.Single(r => r.FromHiveory);
         Assert.Equal("Maple", maple.Title);
-        Assert.Equal("Claude Code · Shop › Primary", maple.Subtitle);
+        Assert.Equal("Claude Code", maple.Where);
+        Assert.Equal("Shop › Primary", maple.Place);
         Assert.Equal("Editing App.cs", maple.Activity);
         Assert.Equal("Codex", rows.Single(r => !r.FromHiveory).Title);
     }
@@ -50,7 +51,8 @@ public class BoardTests
         var rows = Board.Rows([], hiveory, T0, null, done);
 
         var juniper = rows.Single(r => r.Title == "Juniper");
-        Assert.Equal("Codex · Pet › fix-tabs · Dev", juniper.Subtitle);
+        Assert.Equal("Codex · Dev", juniper.Where);
+        Assert.Equal("Pet › fix-tabs", juniper.Place);
         var maple = rows.Single(r => r.Title == "Maple");
         Assert.True(maple.JustFinished);
         Assert.Equal("Done", maple.Activity);

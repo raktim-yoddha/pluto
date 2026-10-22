@@ -117,7 +117,14 @@ public static class ProcessScanner
         return KnownAgents.All.FirstOrDefault(a => a.Packages.Any(p => line.Contains($"/node_modules/{p}/", StringComparison.OrdinalIgnoreCase)))?.Id;
     }
 
-    /// <summary>The app a process is, when agents run inside it.</summary>
+    /// <summary>The app or terminal <paramref name="pid"/> is, by its program; null for anything else.</summary>
+    public static string? HostOf(int pid)
+    {
+        var tree = ProcessTree.Snapshot();
+        return tree.TryGetValue(pid, out var p) ? Host(p.Name, () => { var (path, command, folder) = ProcessTree.Details(pid); return new ProcessInfo(pid, p.Parent, p.Name, path, command, folder); }) : null;
+    }
+
+    /// <summary>The app a process is, when agents run inside it: an app, an editor, or a terminal.</summary>
     private static string? Host(string name, Func<ProcessInfo> details) => name switch
     {
         "claude" when IsApp(details().Path) => "Claude app",
@@ -131,6 +138,11 @@ public static class ProcessScanner
         "antigravity" => "Antigravity",
         "zed" => "Zed",
         "idea64" or "pycharm64" or "webstorm64" or "rider64" or "goland64" => "JetBrains",
+        "windowsterminal" => "Terminal",
+        "wezterm-gui" => "WezTerm",
+        "alacritty" => "Alacritty",
+        "warp" => "Warp",
+        "tabby" => "Tabby",
         _ => null,
     };
 

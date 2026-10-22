@@ -125,6 +125,11 @@ public sealed class Pet : IDisposable
         }
 
         var moment = _tracker.Apply(e, DateTimeOffset.Now);
+        if (e.WindowPid != 0 && _tracker.Find(e.Agent, e.SessionId) is { } session)
+        {
+            session.Host = ProcessScanner.HostOf(e.WindowPid); // the window it reported: Terminal, VS Code, the Claude app…
+        }
+
         Changed?.Invoke(moment, AgentCatalog.Name(e.Agent), e.HiveoryInstance is not null);
     }
 

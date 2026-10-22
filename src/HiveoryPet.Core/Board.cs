@@ -3,11 +3,15 @@ using HiveoryPet.Hiveory;
 
 namespace HiveoryPet;
 
-/// <summary>One line in the pet's list.</summary>
+/// <summary>One line in the pet's list: what the agent is, where it runs, and the folder it works in.</summary>
+/// <param name="Title">What it is: "Claude Code", "Claude app", "Codex", or a Hiveory agent's pet name.</param>
+/// <param name="Where">Where it runs: "Terminal", "VS Code", "Codex app"; for a Hiveory agent its CLI (and "Dev").</param>
+/// <param name="Place">The folder it works in, or a Hiveory agent's "Workspace › Worktree".</param>
 public sealed record Row(
     string Key,
     string Title,
-    string Subtitle,
+    string Where,
+    string Place,
     string Activity,
     PetState State,
     bool JustFinished,
@@ -48,11 +52,11 @@ public static class Board
             var done = a.State == PetState.Idle && doneAt is { } d && now - d < FinishedFor;
             var activity = s is not null && (s.State != PetState.Idle || done) ? s.Activity
                 : a.State switch { PetState.Working => "Working", PetState.NeedsYou => "Waiting for you", _ when done => "Done", _ => "Ready" };
-            var place = a.Worktree.Length > 0 ? $"{a.Workspace} › {a.Worktree}" : a.Workspace;
             rows.Add(new Row(
                 $"hiveory/{a.App}/{a.Id}",
                 a.Name,
-                string.Join(" · ", new[] { a.Cli, place, bothApps && a.App != "Hiveory" ? "Dev" : string.Empty }.Where(x => x.Length > 0)),
+                bothApps && a.App != "Hiveory" ? $"{a.Cli} · Dev" : a.Cli,
+                a.Worktree.Length > 0 ? $"{a.Workspace} › {a.Worktree}" : a.Workspace,
                 activity,
                 a.State,
                 done,
@@ -69,6 +73,7 @@ public static class Board
             rows.Add(new Row(
                 s.Key,
                 AgentCatalog.Name(s.Agent),
+                Where(s.Agent, s.Host),
                 s.Project,
                 s.Activity,
                 s.State,
@@ -91,7 +96,8 @@ public static class Board
             rows.Add(new Row(
                 $"proc/{r.Pid}",
                 AgentCatalog.Name(r.Agent),
-                string.Join(" · ", new[] { r.Project, r.Host is { } h ? $"in {h}" : string.Empty }.Where(x => x.Length > 0)),
+                Where(r.Agent, r.Host),
+                r.Project,
                 string.Empty, // found running, no hooks: nothing to say beyond where it is
                 PetState.Idle,
                 false,
@@ -103,6 +109,9 @@ public static class Board
 
         return [.. rows.OrderBy(Rank).ThenBy(r => r.Title, StringComparer.OrdinalIgnoreCase)];
     }
+
+    /// <summary>The app it runs in, unless the title already says so (a Claude app session is the Claude app).</summary>
+    private static string Where(string agent, string? host) => agent == "claude-desktop" || host is null ? string.Empty : host;
 
     public static Headline Headline(IReadOnlyList<Row> rows)
     {
