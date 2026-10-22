@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/HiveoryPet.Core/HiveoryPet.Core.csproj" />
     <Project Path="src/HiveoryPet.Hook/HiveoryPet.Hook.csproj" />
     <Project Path="src/HiveoryPet/HiveoryPet.csproj" />
   </Folder>

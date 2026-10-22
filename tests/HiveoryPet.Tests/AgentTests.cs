@@ -93,9 +93,15 @@ public class TrackerTests
         Assert.Equal(Moment.Finished, t.Apply(E("Stop"), T0.AddSeconds(72)));
         var s = t.Sessions(T0.AddSeconds(72)).Single();
         Assert.Equal(PetState.Idle, s.State);
-        Assert.Equal("Finished · 1:12 · 1 edit", s.Activity);
+        Assert.Equal("Done in 1:12 · 1 edit", s.Activity);
         Assert.Equal(Moment.None, t.Apply(E("Stop"), T0.AddSeconds(73))); // the same turn twice
     }
+
+    [Theory]
+    [InlineData("Running npm test", "Wants your OK to run npm test")]
+    [InlineData("Editing App.cs", "Wants your OK to edit App.cs")]
+    [InlineData("A helper agent is working", "Wants your OK · A helper agent is working")]
+    public void Permission_asks_read_like_a_sentence(string activity, string asked) => Assert.Equal(asked, Tracker.Ask(activity));
 
     [Fact]
     public void A_tool_that_already_finished_never_comes_back_as_running()
@@ -112,7 +118,7 @@ public class TrackerTests
     {
         var t = new Tracker();
         t.Apply(E("UserPromptSubmit"), T0);
-        Assert.Equal("No news for a while", t.Sessions(T0 + Tracker.StaleAfter + TimeSpan.FromSeconds(1)).Single().Activity);
+        Assert.Equal("Quiet for a while", t.Sessions(T0 + Tracker.StaleAfter + TimeSpan.FromSeconds(1)).Single().Activity);
         Assert.Empty(t.Sessions(T0 + Tracker.ForgetAfter + TimeSpan.FromSeconds(1)));
 
         t.Apply(E("SessionStart"), T0);

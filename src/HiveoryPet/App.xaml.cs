@@ -1,7 +1,6 @@
 using System.Security.Principal;
-using System.Windows;
-using System.Windows.Media.Animation;
-using HiveoryPet.Ui;
+using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
 
 namespace HiveoryPet;
 
@@ -9,31 +8,33 @@ public partial class App : Application
 {
     private Mutex? _single;
     private Pet? _pet;
+    private PetWindow? _window;
 
-    protected override void OnStartup(StartupEventArgs e)
+    public App()
     {
-        base.OnStartup(e);
+        InitializeComponent();
+        UnhandledException += (_, e) => Log.Write("Unhandled", e.Exception);
+    }
 
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    {
         // One pet per Windows user.
         _single = new Mutex(true, "HiveoryPet-" + WindowsIdentity.GetCurrent().User?.Value, out var first);
         if (!first)
         {
-            Shutdown();
+            Exit();
             return;
         }
 
-        // 30 fps is plenty for blinking dots, and half the work of 60.
-        Timeline.DesiredFrameRateProperty.OverrideMetadata(typeof(Timeline), new FrameworkPropertyMetadata { DefaultValue = 30 });
-
-        _pet = new Pet(Dispatcher);
+        var ui = DispatcherQueue.GetForCurrentThread();
+        _pet = new Pet(action => ui.TryEnqueue(() => action()));
         _pet.Start();
-        new PetWindow(_pet).Show();
-    }
-
-    protected override void OnExit(ExitEventArgs e)
-    {
-        _pet?.Dispose();
-        _single?.Dispose();
-        base.OnExit(e);
+        _window = new PetWindow(new PetViewModel(_pet));
+        _window.Closed += (_, _) =>
+        {
+            _pet.Dispose();
+            _single.Dispose();
+        };
+        _window.ShowWithoutFocus();
     }
 }

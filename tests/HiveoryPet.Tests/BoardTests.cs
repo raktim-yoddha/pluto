@@ -1,4 +1,3 @@
-using System.Windows;
 using HiveoryPet.Agents;
 using HiveoryPet.Hiveory;
 
@@ -48,37 +47,51 @@ public class BoardTests
         Assert.Equal(PetState.NeedsYou, rows[0].State);
         var headline = Board.Headline(rows);
         Assert.Equal("Claude Code needs you", headline.Title);
-        Assert.Equal("Needs your OK: Running npm test", headline.Subtitle);
-        Assert.Equal("All quiet", Board.Headline([]).Title);
+        Assert.Equal("Wants your OK to run npm test", headline.Subtitle);
+        Assert.Equal("Nothing running", Board.Headline([]).Title);
     }
 }
 
 public class PlacementTests
 {
-    private static readonly Rect Work = new(0, 0, 1920, 1040);
+    // A 1920×1080 screen at 100 %, its taskbar hidden (so the work area is the whole screen) but 48 px tall when shown.
+    private static readonly Box Work = new(0, 0, 1920, 1080);
+    private const int Floor = 1032;
 
     [Fact]
-    public void The_six_spots_sit_on_their_edges()
+    public void Top_spots_hang_from_the_edge_and_bottom_spots_float_above_the_taskbar()
     {
-        var size = new Size(300, 50);
-        Assert.Equal(new Point(810, 0), Placement.Origin(Spot.TopCenter, size, Work));
-        Assert.Equal(new Point(16, 0), Placement.Origin(Spot.TopLeft, size, Work));
-        Assert.Equal(new Point(1604, 0), Placement.Origin(Spot.TopRight, size, Work));
-        Assert.Equal(new Point(16, 990), Placement.Origin(Spot.BottomLeft, size, Work));
-        Assert.Equal(new Point(810, 990), Placement.Origin(Spot.BottomCenter, size, Work));
-        Assert.Equal(new Point(1604, 990), Placement.Origin(Spot.BottomRight, size, Work));
+        Assert.Equal(new Box(810, -10, 300, 60), Placement.Dock(Spot.TopCenter, 300, 60, Work, Floor, 10, 1));
+        Assert.Equal(new Box(12, -10, 300, 60), Placement.Dock(Spot.TopLeft, 300, 60, Work, Floor, 10, 1));
+        Assert.Equal(new Box(1608, -10, 300, 60), Placement.Dock(Spot.TopRight, 300, 60, Work, Floor, 10, 1));
+        Assert.Equal(new Box(810, 960, 300, 60), Placement.Dock(Spot.BottomCenter, 300, 60, Work, Floor, 10, 1));
+        Assert.Equal(new Box(12, 960, 300, 60), Placement.Dock(Spot.BottomLeft, 300, 60, Work, Floor, 10, 1));
+        Assert.Equal(new Box(1608, 960, 300, 60), Placement.Dock(Spot.BottomRight, 300, 60, Work, Floor, 10, 1));
+    }
+
+    [Fact]
+    public void A_shown_taskbar_already_left_out_of_the_work_area_counts_once()
+    {
+        var work = new Box(0, 0, 1920, 1032);
+        Assert.Equal(960, Placement.Dock(Spot.BottomCenter, 300, 60, work, Floor, 10, 1).Y);
+    }
+
+    [Fact]
+    public void Spots_scale_with_the_display()
+    {
+        Assert.Equal(new Box(18, 954, 300, 60), Placement.Dock(Spot.BottomLeft, 300, 60, Work, Floor, 10, 1.5));
     }
 
     [Fact]
     public void Dropping_near_a_spot_docks_and_anywhere_else_floats()
     {
-        Assert.Equal(Spot.BottomRight, Placement.Snap(new Rect(1580, 960, 300, 50), Work));
-        Assert.Equal(Spot.Floating, Placement.Snap(new Rect(700, 500, 300, 50), Work));
+        Assert.Equal(Spot.BottomRight, Placement.Snap(new Box(1580, 930, 300, 60), Work, Floor, 10, 1));
+        Assert.Equal(Spot.Floating, Placement.Snap(new Box(700, 500, 300, 60), Work, Floor, 10, 1));
     }
 
     [Fact]
     public void A_floating_pet_stays_on_screen() =>
-        Assert.Equal(new Point(1620, 990), Placement.Clamp(new Point(5000, 5000), new Size(300, 50), Work));
+        Assert.Equal(new Box(1620, 1020, 300, 60), Placement.Clamp(new Box(5000, 5000, 300, 60), Work));
 }
 
 public class HiveoryLinkTests
