@@ -1,5 +1,7 @@
 using HiveoryPet.Agents;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace HiveoryPet;
 
@@ -23,6 +25,37 @@ public static class Ui
         "done" => state == PetState.Idle && justFinished,
         _ => state == PetState.Idle && !justFinished,
     });
+
+    private static readonly Dictionary<string, ImageSource?> Icons = [];
+
+    /// <summary>
+    /// An agent's official mark (Assets/Agents, from Hiveory). Marks drawn in a single light colour have a dark copy
+    /// ("-light") for light mode. Null when there is none, so nothing generic stands in for it.
+    /// </summary>
+    public static ImageSource? Icon(string id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return null;
+        }
+
+        var light = Application.Current.RequestedTheme == ApplicationTheme.Light;
+        var key = (light ? "light/" : "dark/") + id;
+        if (Icons.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var folder = Path.Combine(AppContext.BaseDirectory, "Assets", "Agents");
+        var svg = new[] { light ? $"{id}-light.svg" : null, $"{id}.svg" }.Where(n => n is not null).Select(n => Path.Combine(folder, n!)).FirstOrDefault(File.Exists);
+        var png = Path.Combine(folder, $"{id}.png");
+        ImageSource? icon = svg is not null ? new SvgImageSource(new Uri(svg))
+            : File.Exists(png) ? new BitmapImage(new Uri(png))
+            : null;
+        return Icons[key] = icon;
+    }
+
+    public static ImageSource? IconFor(AgentSpec spec) => Icon(spec.Id);
 
     /// <summary>"Editing Cart.cs · shop", or just one of them.</summary>
     public static string Detail(string activity, string subtitle) =>

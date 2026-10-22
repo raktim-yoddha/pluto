@@ -6,6 +6,9 @@ Hiveory Pet adapts small parts of these MIT-licensed projects:
 - coucou (https://github.com/louis-cfm/coucou): the agent event-name table, hook config
   locations and formats (src/HiveoryPet/Agents/HookEvent.cs, AgentCatalog.cs, HookInstaller.cs).
   The Coucou name, Mochi and its sounds are not used.
+- Agent marks in `src/HiveoryPet/Assets/Agents`, copied from Hiveory: LobeHub Icons
+  (https://github.com/lobehub/lobe-icons, MIT) and official GitHub organization avatars. Each mark remains its
+  owner's trademark and is used only to identify that agent.
 - Mithu AI Companion (https://github.com/Srinath0369/Mithu-AI-Companion): the session state
   machine and short activity texts (src/HiveoryPet/Agents/Tracker.cs, HookEvent.cs).
 

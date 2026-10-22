@@ -20,6 +20,10 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2526" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Official agent marks, from Hiveory (scripts/import-icons.mjs). -->
+    <Content Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\HiveoryPet.Core\HiveoryPet.Core.csproj" />
   </ItemGroup>
   <!-- The hook relay ships next to the app; the pet copies it to a stable folder on start. -->

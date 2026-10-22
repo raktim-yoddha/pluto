@@ -79,7 +79,7 @@ public sealed partial class BotFace : Grid
 
     /// <summary>Turns the eyes towards a point given relative to the face's centre (−1…1 on each axis).</summary>
     public void Look(double x, double y) =>
-        _eyes.Translation = new Vector3((float)(Math.Clamp(x, -1, 1) * Pitch * 0.9), (float)(Math.Clamp(y, -1, 1) * Pitch * (EyesOnly ? 0.15 : 0.5)), 0);
+        _eyes.Translation = new Vector3((float)(Math.Clamp(x, -1, 1) * Pitch * 0.55), (float)(Math.Clamp(y, -1, 1) * Pitch * (EyesOnly ? 0.12 : 0.3)), 0);
 
     /// <summary>Two little hops: a finished turn, a poke.</summary>
     public void Hop()

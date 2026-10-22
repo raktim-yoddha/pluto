@@ -90,7 +90,7 @@ public class HiveoryLinkTests
     {
         var agents = HiveoryLink.Parse("""{"agents":[{"id":"a1","name":"Maple","cli":"Codex","workspace":"Shop","worktree":"fix-cart","status":"waiting-for-you"},{"id":"a2","status":"working"},{"name":"no id"}]}""")!;
         Assert.Equal(2, agents.Count);
-        Assert.Equal(new HiveoryAgent("a1", "Maple", "Codex", "Shop", "fix-cart", PetState.NeedsYou), agents[0]);
+        Assert.Equal(new HiveoryAgent("a1", "Maple", "Codex", "Shop", "fix-cart", PetState.NeedsYou, "codex"), agents[0]);
         Assert.Equal(PetState.Working, agents[1].State);
     }
 }

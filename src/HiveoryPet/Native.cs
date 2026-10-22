@@ -14,9 +14,20 @@ internal static partial class Native
     private const int BorderColor = 34; // DWMWA_BORDER_COLOR
     private const int Restore = 9;
 
-    /// <summary>No focus stealing, no taskbar button, Windows 11's rounded corners and no outline.</summary>
-    public static void MakePetWindow(nint hwnd)
+    private static readonly HashSet<nint> Unframed = [];
+
+    /// <summary>
+    /// No focus stealing, no taskbar button, Windows 11's rounded corners and no outline, and no frame at all: a window
+    /// with a border keeps invisible resize margins, which made the visible pet smaller than its window and shifted
+    /// everything inside it. Answering WM_NCCALCSIZE with "no frame" makes the client area the whole window.
+    /// </summary>
+    public static unsafe void MakePetWindow(nint hwnd)
     {
+        if (Unframed.Add(hwnd))
+        {
+            SetWindowSubclass(hwnd, &NoFrame, 1, 0);
+        }
+
         SetWindowLongPtrW(hwnd, ExStyle, (nint)((GetWindowLongPtrW(hwnd, ExStyle) | ToolWindow | NoActivate) & ~0x100L /* WS_EX_WINDOWEDGE */));
         SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0027); // SWP_FRAMECHANGED | NOMOVE | NOSIZE | NOZORDER
         var round = Round;
@@ -26,6 +37,10 @@ internal static partial class Native
         var dark = 1;
         DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
     }
+
+    [UnmanagedCallersOnly]
+    private static nint NoFrame(nint hwnd, uint message, nint wParam, nint lParam, nuint id, nuint data) =>
+        message == 0x0083 /* WM_NCCALCSIZE */ && wParam != 0 ? 0 : DefSubclassProc(hwnd, message, wParam, lParam);
 
     /// <summary>The cursor in physical screen pixels.</summary>
     public static (int X, int Y) Cursor() => GetCursorPos(out var p) ? (p.X, p.Y) : (0, 0);
@@ -96,6 +111,12 @@ internal static partial class Native
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetWindowPos(nint hwnd, nint after, int x, int y, int cx, int cy, uint flags);
+
+    [LibraryImport("comctl32.dll")]
+    private static unsafe partial int SetWindowSubclass(nint hwnd, delegate* unmanaged<nint, uint, nint, nint, nuint, nuint, nint> proc, nuint id, nuint data);
+
+    [LibraryImport("comctl32.dll")]
+    private static partial nint DefSubclassProc(nint hwnd, uint message, nint wParam, nint lParam);
 
     [LibraryImport("dwmapi.dll")]
     private static partial int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);

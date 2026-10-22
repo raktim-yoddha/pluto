@@ -38,6 +38,12 @@
                 </local:SettingCard>
 
                 <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Agents to watch" />
+                <TextBlock
+                    Margin="1,-4,0,8"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap"
+                    Text="Every coding agent shows up while it runs, including sessions inside the Claude and Codex apps. Turn one on here to also see when it's working, needs you or is done." />
                 <ItemsControl ItemsSource="{x:Bind ViewModel.Agents}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -46,7 +52,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="local:AgentToggle">
-                            <local:SettingCard Glyph="&#xE99A;" Header="{x:Bind Name}" Description="{x:Bind Detail, Mode=OneWay}">
+                            <local:SettingCard Image="{x:Bind local:Ui.IconFor(Spec)}" Header="{x:Bind Name}" Description="{x:Bind Detail, Mode=OneWay}">
                                 <ToggleSwitch
                                     MinWidth="0"
                                     IsOn="{x:Bind IsOn, Mode=TwoWay}"

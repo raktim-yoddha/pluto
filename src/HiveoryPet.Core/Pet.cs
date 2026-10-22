@@ -14,7 +14,9 @@ public sealed class Pet : IDisposable
     private readonly PipeServer _pipe;
     private readonly HiveoryLink _link;
     private readonly bool _persist;
+    private readonly CancellationTokenSource _stop = new();
     private Dictionary<string, PetState> _hiveoryBefore = [];
+    private IReadOnlyList<RunningAgent> _running = [];
 
     /// <param name="settings">Given (tests): used as they are and never written to disk.</param>
     public Pet(Action<Action> post, PetSettings? settings = null)
@@ -42,13 +44,14 @@ public sealed class Pet : IDisposable
     {
         EnsureRelay();
         _pipe.Start();
+        _ = Task.Run(ScanAsync);
         if (Settings.Hiveory)
         {
             _link.Start();
         }
     }
 
-    public IReadOnlyList<Row> Rows() => Board.Rows(_tracker.Sessions(DateTimeOffset.Now), _link.Agents, DateTimeOffset.Now);
+    public IReadOnlyList<Row> Rows() => Board.Rows(_tracker.Sessions(DateTimeOffset.Now), _link.Agents, DateTimeOffset.Now, _running);
 
     public void Update(Func<PetSettings, PetSettings> change)
     {
@@ -98,8 +101,35 @@ public sealed class Pet : IDisposable
 
     public void Dispose()
     {
+        _stop.Cancel();
         _pipe.Dispose();
         _link.Dispose();
+    }
+
+    /// <summary>Every few seconds: which agents are running (the ones without hooks, and sessions inside apps).</summary>
+    private async Task ScanAsync()
+    {
+        while (!_stop.IsCancellationRequested)
+        {
+            try
+            {
+                var running = ProcessScanner.Scan();
+                _post(() =>
+                {
+                    if (!running.SequenceEqual(_running))
+                    {
+                        _running = running;
+                        Changed?.Invoke(Moment.None, string.Empty);
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                Log.Write("Process scan", e);
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(3), _stop.Token).ContinueWith(_ => { }, TaskScheduler.Default);
+        }
     }
 
     /// <summary>One envelope from the relay.</summary>

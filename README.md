@@ -23,6 +23,12 @@ It follows Windows: your light or dark theme, Windows' own acrylic, Segoe UI, na
 | Drag | Drop it near the top edge to make a notch right there, anywhere along it; anywhere else it floats |
 | ⚙ or right-click | Settings |
 
+**Which agents:** every coding agent CLI Hiveory knows (36 of them: Claude Code, Codex, Gemini CLI, Copilot CLI,
+Cursor CLI, OpenCode, Qwen Code, Amp, Aider, Goose, Crush, Kiro, Droid…) shows up while it runs, with its official
+icon, its project folder and the app it runs in: sessions in the Claude app's Code tab, the Codex app, VS Code,
+Cursor, Hiveory. For Claude Code, Codex, Gemini CLI, Cursor and Copilot CLI you can also turn on hooks, which add
+live status: working, needs you, done.
+
 **Settings** (a Windows Settings–style window): where the pet lives (top edge or floating), the agents to watch,
 Hiveory, sounds, start with Windows. Turning an agent on adds a small hook to that agent's own config
 (`~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.gemini/settings.json`, `~/.cursor/hooks.json`,
@@ -44,7 +50,9 @@ agent hook ──stdin──▶ hiveory-pet-hook.exe ──named pipe (this user
   about 20 ms.
 - `src/HiveoryPet.Core` — everything but the window, no UI types:
   - `Agents/` parses every agent's events into one shape, runs the session state machine (Idle · Working · Needs
-    you, the same three states as Hiveory's board), installs hooks and listens on the pipe.
+    you, the same three states as Hiveory's board), installs hooks and listens on the pipe. `ProcessScanner` finds
+    running agents every 3 s from the process list (program names, npm packages in node's command line, each
+    process's working folder and the app above it).
   - `Hiveory/` is the Hiveory link: reads `%LOCALAPPDATA%\Hiveory\Runtime\pet-link.json` and follows
     `GET /pet/events` (Hiveory's ADR 0054).
   - `Board.cs` makes one list from both (a hook session inside a Hiveory agent shows once), `Placement.cs` the
@@ -53,6 +61,11 @@ agent hook ──stdin──▶ hiveory-pet-hook.exe ──named pipe (this user
   `DesktopAcrylicController` backdrop. Size changes glide on a spring; the dot-matrix face (`BotFace.cs`) blinks,
   breathes, hops and looks at your cursor with composition animations, so it all runs at the display's frame rate.
   `SettingsWindow` is a Mica window with the system title bar and Windows Settings cards (`SettingCard`).
+
+## Icons
+
+`src/HiveoryPet/Assets/Agents` holds the same official marks Hiveory uses, copied with
+`node scripts/import-icons.mjs <Hiveory>/src/main/services/cli/adapters/icon-data.ts`.
 
 ## Privacy
 
@@ -65,7 +78,7 @@ access except Hiveory's link on 127.0.0.1.
 Requires Windows 10/11 and the .NET 10 SDK.
 
 ```powershell
-dotnet test tests/HiveoryPet.Tests  # 38 tests
+dotnet test tests/HiveoryPet.Tests  # 41 tests
 dotnet build src/HiveoryPet          # then run src/HiveoryPet/bin/Debug/net10.0-windows10.0.26100.0/win-x64/HiveoryPet.exe
 pwsh scripts/publish.ps1             # out/HiveoryPet-win-x64.zip, self-contained (NativeAOT relay needs the VS C++ workload)
 ```

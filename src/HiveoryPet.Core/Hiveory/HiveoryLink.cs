@@ -8,7 +8,7 @@ using HiveoryPet.Agents;
 namespace HiveoryPet.Hiveory;
 
 /// <summary>A Hiveory agent as Hiveory's pet link reports it: names and status only, never its terminal or files.</summary>
-public sealed record HiveoryAgent(string Id, string Name, string Cli, string Workspace, string Worktree, PetState State);
+public sealed record HiveoryAgent(string Id, string Name, string Cli, string Workspace, string Worktree, PetState State, string? CliId = null);
 
 public enum LinkState { Off, NotInstalled, NotRunning, Connected }
 
@@ -114,7 +114,8 @@ public sealed class HiveoryLink(Action<IReadOnlyList<HiveoryAgent>, LinkState> o
                 a.Cli ?? string.Empty,
                 a.Workspace ?? string.Empty,
                 a.Worktree ?? string.Empty,
-                a.Status switch { "working" => PetState.Working, "waiting-for-you" => PetState.NeedsYou, _ => PetState.Idle }))
+                a.Status switch { "working" => PetState.Working, "waiting-for-you" => PetState.NeedsYou, _ => PetState.Idle },
+                a.CliId ?? KnownAgents.IdForName(a.Cli ?? string.Empty)))
             .ToList();
     }
 
@@ -161,7 +162,7 @@ public sealed class HiveoryLink(Action<IReadOnlyList<HiveoryAgent>, LinkState> o
 
     internal sealed record Frame(List<AgentDto>? Agents);
 
-    internal sealed record AgentDto(string? Id, string? Name, string? Cli, string? Workspace, string? Worktree, string? Status);
+    internal sealed record AgentDto(string? Id, string? Name, string? Cli, string? Workspace, string? Worktree, string? Status, string? CliId = null);
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]

@@ -13,21 +13,23 @@ public sealed record Row(
     bool JustFinished,
     string Time,
     bool FromHiveory,
-    int WindowPid);
+    int WindowPid,
+    string Icon);
 
 /// <summary>What the pet says at a glance (the compact pill).</summary>
 public sealed record Headline(string Title, string Subtitle, PetState State, bool JustFinished);
 
 /// <summary>
-/// Puts Hiveory's agents and the sessions seen through hooks into one list. A hook session that runs inside a
-/// Hiveory agent (HIVEORY_INSTANCE_ID) is shown once, on the Hiveory row, which takes its activity text. Pure.
+/// Puts Hiveory's agents, the sessions seen through hooks and the agents found running into one list. A hook session
+/// inside a Hiveory agent (HIVEORY_INSTANCE_ID) shows once, on the Hiveory row, which takes its activity text; a
+/// running agent shows only when neither covers it (no hooks for it yet, or an app's own session). Pure.
 /// </summary>
 public static class Board
 {
     /// <summary>A finished turn is announced this long.</summary>
     public static readonly TimeSpan FinishedFor = TimeSpan.FromMinutes(10);
 
-    public static IReadOnlyList<Row> Rows(IReadOnlyList<Session> sessions, IReadOnlyList<HiveoryAgent> hiveory, DateTimeOffset now)
+    public static IReadOnlyList<Row> Rows(IReadOnlyList<Session> sessions, IReadOnlyList<HiveoryAgent> hiveory, DateTimeOffset now, IReadOnlyList<RunningAgent>? running = null)
     {
         var rows = new List<Row>();
         var byInstance = sessions.Where(s => s.HiveoryInstance is not null).GroupBy(s => s.HiveoryInstance!).ToDictionary(g => g.Key, g => g.MaxBy(s => s.Last)!);
@@ -46,7 +48,8 @@ public static class Board
                 done,
                 s is not null && a.State != PetState.Idle ? Tracker.Clock(now - s.TurnStart) : string.Empty,
                 FromHiveory: true,
-                0));
+                0,
+                a.CliId ?? string.Empty));
         }
 
         var shown = hiveory.Select(a => a.Id).ToHashSet();
@@ -62,7 +65,30 @@ public static class Board
                 done,
                 s.State != PetState.Idle ? Tracker.Clock(now - s.TurnStart) : string.Empty,
                 FromHiveory: false,
-                s.WindowPid));
+                s.WindowPid,
+                AgentCatalog.IconId(s.Agent)));
+        }
+
+        foreach (var r in running ?? [])
+        {
+            var covered = (r.Host == "Hiveory" && hiveory.Count > 0)
+                || sessions.Any(s => s.Agent == r.Agent && string.Equals(s.Project, r.Project, StringComparison.OrdinalIgnoreCase));
+            if (covered)
+            {
+                continue;
+            }
+
+            rows.Add(new Row(
+                $"proc/{r.Pid}",
+                AgentCatalog.Name(r.Agent),
+                string.Join(" · ", new[] { r.Project, r.Host is { } h ? $"in {h}" : string.Empty }.Where(x => x.Length > 0)),
+                string.Empty, // found running, no hooks: nothing to say beyond where it is
+                PetState.Idle,
+                false,
+                string.Empty,
+                FromHiveory: false,
+                r.Pid,
+                AgentCatalog.IconId(r.Agent)));
         }
 
         return [.. rows.OrderBy(Rank).ThenBy(r => r.Title, StringComparer.OrdinalIgnoreCase)];

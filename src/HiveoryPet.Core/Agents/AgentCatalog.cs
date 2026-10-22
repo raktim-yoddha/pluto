@@ -81,8 +81,11 @@ public static partial class AgentCatalog
     public static string Name(string id) => id switch
     {
         "claude-desktop" => "Claude app",
-        _ => All.FirstOrDefault(a => a.Id == id)?.Name ?? id,
+        _ => All.FirstOrDefault(a => a.Id == id)?.Name ?? KnownAgents.Find(id)?.Name ?? id,
     };
+
+    /// <summary>The icon an agent id uses: the Claude app shows Claude's mark.</summary>
+    public static string IconId(string id) => id == "claude-desktop" ? "claude" : id;
 
     /// <summary>Agent ids are short and plain; anything else from a payload is ignored.</summary>
     public static bool IsValidId(string id) => IdPattern().IsMatch(id);

@@ -35,7 +35,10 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <FontIcon VerticalAlignment="Center" FontSize="20" Glyph="{TemplateBinding Glyph}" />
+                                <Grid Width="20" Height="20" VerticalAlignment="Center">
+                                    <FontIcon FontSize="20" Glyph="{TemplateBinding Glyph}" />
+                                    <Image Source="{TemplateBinding Image}" />
+                                </Grid>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Style="{StaticResource BodyTextBlockStyle}" Text="{TemplateBinding Header}" />
                                     <TextBlock

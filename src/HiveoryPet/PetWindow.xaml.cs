@@ -85,7 +85,7 @@ public sealed partial class PetWindow : Window
             Native.MakePetWindow(_hwnd); // again once shown: WinUI sets the frame up late, after the constructor
             SyncTheme();
             ViewModel.Refresh();
-            Face.Mood = ViewModel.Mood;
+            Face.Mood = SoloFace.Mood = ViewModel.Mood;
             Arrange(jump: true);
             _tick.Start();
             _gaze.Start();
@@ -142,7 +142,7 @@ public sealed partial class PetWindow : Window
                 Arrange();
                 break;
             case nameof(PetViewModel.Mood):
-                Face.Mood = ViewModel.Mood;
+                Face.Mood = SoloFace.Mood = ViewModel.Mood;
                 TuckedFace.Mood = ViewModel.Mood == Mood.NeedsYou ? Mood.NeedsYou : Mood.Idle;
                 break;
         }
@@ -150,7 +150,7 @@ public sealed partial class PetWindow : Window
 
     private void OnMoment(Moment moment)
     {
-        Face.Hop();
+        VisibleFace.Hop();
         if (!ViewModel.Sounds)
         {
             return;
@@ -324,7 +324,7 @@ public sealed partial class PetWindow : Window
         }
         else if (pressed)
         {
-            Face.Hop();
+            VisibleFace.Hop();
             ViewModel.ToggleList();
         }
     }
@@ -400,13 +400,16 @@ public sealed partial class PetWindow : Window
             return;
         }
 
-        var face = ViewModel.Look == Look.Tucked ? TuckedFace : Face;
+        var face = VisibleFace;
         var scale = Root.XamlRoot.RasterizationScale;
         var center = face.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(face.ActualWidth / 2, face.ActualHeight / 2));
         var p = AppWindow.Position;
         var (x, y) = Native.Cursor();
         face.Look((x - (p.X + (center.X * scale))) / (420 * scale), (y - (p.Y + (center.Y * scale))) / (260 * scale));
     }
+
+    /// <summary>The face on show for the current look.</summary>
+    private BotFace VisibleFace => ViewModel.Look switch { Look.Tucked => TuckedFace, Look.Face => SoloFace, _ => Face };
 
     // ── Actions ────────────────────────────────────────────────────────────────────────────
 
@@ -438,7 +441,7 @@ public sealed partial class PetWindow : Window
             : row.WindowPid != 0 && Native.BringForward(row.WindowPid);
         if (!found)
         {
-            Face.Hop();
+            VisibleFace.Hop();
         }
     }
 
