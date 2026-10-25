@@ -116,6 +116,52 @@ public class TodoTests
     }
 
     [Fact]
+    public void A_month_of_history_lets_the_oldest_day_go_each_new_day()
+    {
+        var s = Make();
+        s.SetKeepDays(30);
+        for (var day = 0; day < 31; day++)
+        {
+            s.Add($"Task {day}");
+            _now = _now.AddDays(1);
+            s.RollOverIfDue(); // the clock passed the reset time: yesterday goes to History
+        }
+
+        Assert.Equal(30, s.State.History.Count);
+        var oldest = s.State.History[^1].Date;
+
+        s.Add("One more");
+        _now = _now.AddDays(1);
+        s.RollOverIfDue();
+        Assert.Equal(30, s.State.History.Count);
+        Assert.DoesNotContain(s.State.History, d => d.Date == oldest);
+        Assert.Equal("One more", s.State.History[0].Todos[0].Text);
+    }
+
+    [Fact]
+    public void The_list_keeps_its_rows_and_only_moves_or_replaces_what_changed()
+    {
+        var vm = new TodoViewModel(new TodoStore(null, () => _now));
+        vm.Add("One");
+        vm.Add("Two");
+        vm.Add("Three");
+        var (one, two, three) = (vm.Items[0], vm.Items[1], vm.Items[2]);
+
+        vm.Toggle(two.Id);
+        Assert.Same(one, vm.Items[0]);
+        Assert.NotSame(two, vm.Items[1]); // it changed, so it is a new row
+        Assert.True(vm.Items[1].Completed);
+        Assert.Same(three, vm.Items[2]);
+
+        vm.MoveTo(three.Id, 0);
+        Assert.Same(three, vm.Items[0]);
+        Assert.Same(one, vm.Items[1]);
+
+        vm.Delete(one.Id);
+        Assert.Equal([three.Id, two.Id], vm.Items.Select(i => i.Id));
+    }
+
+    [Fact]
     public void The_next_new_day_is_the_coming_reset_time()
     {
         var s = Make();

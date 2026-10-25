@@ -60,6 +60,27 @@ public class ViewModelTests
     }
 
     [Fact]
+    public void Size_eyes_volume_and_sounds_are_settings()
+    {
+        var (_, vm) = Make();
+        vm.SizeChoice = 2;
+        vm.EyesChoice = 1;
+        vm.Volume = 140;
+        Assert.Equal(NotchSize.Large, vm.Settings.Size);
+        Assert.Equal(EyeStyle.Oval, vm.Eyes);
+        Assert.Equal(100, vm.Settings.Volume);
+
+        var done = vm.Sounds[(int)SoundKind.Finished];
+        Assert.Equal(0, done.Choice); // Pluto's own
+        done.Choose(1);
+        Assert.Equal(string.Empty, vm.Settings.DoneSound);
+        Assert.Equal("Silent", done.Detail);
+        Assert.NotNull(done.UseFile("C:/music/notes.txt")); // not a sound file
+        done.Choose(0);
+        Assert.Null(vm.Settings.DoneSound);
+    }
+
+    [Fact]
     public void A_click_opens_the_list_leaving_folds_it_and_the_hiveory_section_needs_its_option()
     {
         var (_, vm) = Make();
@@ -85,7 +106,9 @@ public class SettingsTests
         var s = System.Text.Json.JsonSerializer.Deserialize("""{"Spot":"BottomLeft","Hiveory":true}""", SettingsJson.Default.PetSettings)!;
         Assert.Equal(Dock.Notch, s.Dock);
         Assert.True(s.Sounds);
-        Assert.True(s.Sounds);
+        Assert.Equal(NotchSize.Small, s.Size);
+        Assert.Equal(EyeStyle.Dots, s.Eyes);
+        Assert.Null(s.DoneSound);
         Assert.Null(s.FloatX);
     }
 }

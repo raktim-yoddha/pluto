@@ -43,7 +43,7 @@ public sealed class TodoState
     /// <summary>When a new day starts ("00:00"…"06:00"): the list moves to History and a fresh one begins.</summary>
     public string ResetTime { get; set; } = "00:00";
 
-    /// <summary>How many days History keeps: 7, 14 or 30.</summary>
+    /// <summary>How many days History keeps (one of <see cref="TodoStore.KeepOptions"/>): each new day lets the oldest go.</summary>
     public int KeepDays { get; set; } = 7;
 
     public CompletionOrder Order { get; set; } = CompletionOrder.StayInPlace;
@@ -64,9 +64,15 @@ public sealed class TodoState
 public sealed class TodoStore(string? file, Func<DateTimeOffset> now)
 {
     public static readonly string[] ResetTimes = ["00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"];
-    public static readonly int[] KeepOptions = [7, 14, 30];
+    public static readonly int[] KeepOptions = [7, 14, 30, 90, 365];
 
     public TodoState State { get; private set; } = new();
+
+    /// <summary>When the list was last written to disk; null until it is.</summary>
+    public DateTimeOffset? LastSaved { get; private set; }
+
+    /// <summary>The file it is kept in, or null (tests).</summary>
+    public string? File => file;
 
     /// <summary>The list or its settings changed.</summary>
     public event Action? Changed;
@@ -77,9 +83,10 @@ public sealed class TodoStore(string? file, Func<DateTimeOffset> now)
     {
         try
         {
-            if (file is not null && File.Exists(file))
+            if (file is not null && System.IO.File.Exists(file))
             {
-                State = JsonSerializer.Deserialize(File.ReadAllText(file), TodoJson.Default.TodoState) ?? new();
+                State = JsonSerializer.Deserialize(System.IO.File.ReadAllText(file), TodoJson.Default.TodoState) ?? new();
+                LastSaved = System.IO.File.GetLastWriteTime(file);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
@@ -347,30 +354,35 @@ public sealed class TodoStore(string? file, Func<DateTimeOffset> now)
         State.Todos.Clear();
     }
 
+    /// <summary>History keeps the last <see cref="TodoState.KeepDays"/> days: on the next day, the oldest goes.</summary>
     private void Prune()
     {
         var cutoff = DateOnly.FromDateTime(now().DateTime).AddDays(-State.KeepDays);
         State.History.RemoveAll(d => DateOnly.TryParseExact(d.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) && date < cutoff);
     }
 
+    /// <summary>Writes the list straight away (every change is saved), then tells the UI.</summary>
     private void Save()
     {
-        Changed?.Invoke();
         if (file is null)
         {
+            Changed?.Invoke();
             return;
         }
 
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file + ".tmp", JsonSerializer.Serialize(State, TodoJson.Default.TodoState));
-            File.Move(file + ".tmp", file, overwrite: true);
+            System.IO.File.WriteAllText(file + ".tmp", JsonSerializer.Serialize(State, TodoJson.Default.TodoState));
+            System.IO.File.Move(file + ".tmp", file, overwrite: true);
+            LastSaved = now();
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             Log.Write("Saving the to-do list", e);
         }
+
+        Changed?.Invoke();
     }
 }
 

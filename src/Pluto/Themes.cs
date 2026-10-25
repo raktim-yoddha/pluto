@@ -6,7 +6,7 @@ using Windows.UI;
 namespace Pluto;
 
 /// <summary>
-/// Pluto's three looks. Windows: the system's own (acrylic or Mica, light or dark, the user's accent). Black and
+/// Pluto's three looks. Windows: the system's own (light or dark, the user's accent, Mica in Settings). Black and
 /// White: monochrome like a Nothing phone, true black or paper white, the ink colour where Windows puts its accent,
 /// red only when an agent needs you, and the Doto dot-matrix face for headings. Each is a set of theme-resource
 /// overrides on a window's root, so every native control (switches, check boxes, rings, menus) follows it.
@@ -22,15 +22,16 @@ public static class Themes
     /// <summary>The font headings use in this theme (the dot-matrix one in Black and White).</summary>
     public static FontFamily Display(PlutoTheme theme) => theme == PlutoTheme.Windows ? Segoe : Dots;
 
-    /// <summary>True when the window should show the system backdrop (acrylic or Mica) rather than a solid colour.</summary>
+    /// <summary>True when Settings should show Mica rather than a solid colour.</summary>
     public static bool UsesBackdrop(PlutoTheme theme) => theme == PlutoTheme.Windows;
 
     /// <summary>
-    /// Applies <paramref name="theme"/> to a window's root: light or dark, the overrides, the background. Before the
+    /// Applies <paramref name="theme"/> to a window's root: light or dark, the overrides, and (with
+    /// <paramref name="background"/>) the window's background. Before the
     /// root is drawn that's all; on a live change (<paramref name="live"/>) the light/dark theme is flipped and set back
     /// a frame later, which makes every control look its resources up again (flipping twice at once crashes WinUI).
     /// </summary>
-    public static void Apply(FrameworkElement root, PlutoTheme theme, bool live = false)
+    public static void Apply(FrameworkElement root, PlutoTheme theme, bool live = false, bool background = true)
     {
         root.Resources.MergedDictionaries.Clear();
         root.Resources.MergedDictionaries.Add(Dictionary(theme));
@@ -51,7 +52,7 @@ public static class Themes
             root.RequestedTheme = target;
         }
 
-        if (root is Microsoft.UI.Xaml.Controls.Panel panel)
+        if (background && root is Microsoft.UI.Xaml.Controls.Panel panel)
         {
             panel.Background = theme switch
             {
@@ -61,6 +62,18 @@ public static class Themes
             };
         }
     }
+
+    /// <summary>
+    /// Pluto's body and, floating, its hairline edge. Solid, like a hardware notch: Windows' own dark or light surface
+    /// in the Windows theme, true black or paper white in the monochrome ones.
+    /// </summary>
+    public static (Color Fill, Color Edge) SurfaceColors(PlutoTheme theme, ElementTheme actual) => theme switch
+    {
+        PlutoTheme.Black => (Colors.Black, Color.FromArgb(255, 0x26, 0x26, 0x26)),
+        PlutoTheme.White => (Colors.White, Color.FromArgb(255, 0xE2, 0xE2, 0xE2)),
+        _ when actual == ElementTheme.Light => (Color.FromArgb(255, 0xF9, 0xF9, 0xF9), Color.FromArgb(255, 0xDD, 0xDD, 0xDD)),
+        _ => (Color.FromArgb(255, 0x1B, 0x1B, 0x1C), Color.FromArgb(255, 0x33, 0x33, 0x35)),
+    };
 
     /// <summary>The colour of the face's dots and of its alert dot.</summary>
     public static (Color Ink, Color Alert) FaceColors(PlutoTheme theme, ElementTheme actual) => theme switch

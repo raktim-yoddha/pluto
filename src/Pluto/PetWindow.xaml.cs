@@ -1,10 +1,9 @@
 using System.ComponentModel;
-using System.Diagnostics;
+using System.Numerics;
 using Pluto.Agents;
 using Pluto.Todos;
-using Microsoft.UI.Composition;
-using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,43 +12,36 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using VirtualKey = Windows.System.VirtualKey;
-using WinRT;
 using WinRT.Interop;
 
 namespace Pluto;
 
 /// <summary>
-/// Pluto on screen: a borderless, always-on-top Windows App SDK window. It stays small; a moment shows as one note of
-/// a fixed size, popped in and gone again; a click opens the list, which glides open on a spring. Drag it anywhere to
-/// float; drop it near the top edge to make a notch there. Only UI wiring lives here.
+/// Pluto on screen: a see-through, always-on-top window of one fixed size that never takes focus while small. Pluto's
+/// body is drawn inside it (<see cref="NotchSurface"/>) and changes shape on compositor springs: it pops a little when
+/// you point at it, shows a moment's note, and opens into the list. Drag it anywhere to float; drop it near the top edge
+/// to make a notch there. Only UI wiring lives here.
 /// </summary>
 public sealed partial class PetWindow : Window
 {
-    /// <summary>The window's rounded corner, hidden above the screen edge in the notch (DIPs).</summary>
-    private const double Corner = 8;
-
-    /// <summary>The note's one size (DIPs): it never grows or shrinks while it shows.</summary>
-    private const double NoteWidth = 320;
-
     private readonly nint _hwnd;
-    private readonly Spring _x = new();
-    private readonly Spring _y = new();
-    private readonly Spring _w = new();
-    private readonly Spring _h = new();
-    private readonly Stopwatch _clock = new();
     private readonly DispatcherQueueTimer _tick;
     private readonly DispatcherQueueTimer _gaze;
     private readonly DispatcherQueueTimer _leave;
     private readonly DispatcherQueueTimer _settle;
-    private DesktopAcrylicController? _acrylic;
-    private SystemBackdropConfiguration? _backdrop;
+    private NotchSurface? _surface;
     private SettingsWindow? _settings;
+    private Layout? _layout;
+    private Box _window;
+    private Area _hit;
+    private Box? _glideFrom;
     private Look _shown = Look.Tucked;
-    private bool _animating;
+    private bool _hover;
     private bool _menuOpen;
     private bool _pressed;
     private bool _dragging;
     private bool _syncingTabs;
+    private bool _arrangeQueued;
     private (int X, int Y) _pressCursor;
     private PointInt32 _pressWindow;
 
@@ -58,6 +50,7 @@ public sealed partial class PetWindow : Window
         ViewModel = viewModel;
         InitializeComponent();
         _hwnd = WindowNative.GetWindowHandle(this);
+        SystemBackdrop = new ClearBackdrop();
         AddBox.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnAddBoxPressed), handledEventsToo: true);
 
         var presenter = OverlappedPresenter.Create();
@@ -66,11 +59,14 @@ public sealed partial class PetWindow : Window
         presenter.IsMinimizable = false;
         presenter.IsAlwaysOnTop = true;
         AppWindow.SetPresenter(presenter);
-        presenter.SetBorderAndTitleBar(true, false); // a border but no title bar; the border itself is made invisible
+        presenter.SetBorderAndTitleBar(true, false); // a border but no title bar; Windows draws none of it (MakePetWindow)
         AppWindow.IsShownInSwitchers = false;
         AppWindow.SetIcon(Ui.LogoPath);
-        AppWindow.Resize(new SizeInt32(100, 30));
+        AppWindow.Resize(new SizeInt32(1, 1));
         Native.MakePetWindow(_hwnd);
+        Native.SetHitArea(_hwnd, 0, 0, 0, 0);
+        Native.KeepOnTop(_hwnd); // first, so Settings (kept later) sits above it
+        BotFace.SetEyes(ViewModel.Eyes);
         ApplyTheme(live: false); // before anything is drawn
 
         var queue = DispatcherQueue;
@@ -82,6 +78,7 @@ public sealed partial class PetWindow : Window
         {
             ViewModel.Refresh();
             ViewModel.Todo.Tick(); // a new day, when its time comes
+            Native.Raise(); // back on top of anything that pushed in without taking the foreground
             if (ViewModel.Look == Look.List && !_leave.IsRunning && !CursorInside())
             {
                 _leave.Start(); // no PointerExited comes when the cursor jumps away (a click elsewhere, a second screen)
@@ -91,20 +88,22 @@ public sealed partial class PetWindow : Window
 
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.MomentHappened += OnMoment;
+        ViewModel.Todo.Items.CollectionChanged += (_, _) => QueueArrange();
         Root.ActualThemeChanged += (_, _) => Paint();
         Root.Loaded += (_, _) =>
         {
             Native.MakePetWindow(_hwnd); // again once shown: WinUI sets the frame up late, after the constructor
+            _surface = new NotchSurface(ShapeHost, Stage);
             Paint();
             ViewModel.Refresh();
             Face.Mood = SoloFace.Mood = ViewModel.Mood;
             Arrange(jump: true);
+            Root.XamlRoot.Changed += (_, _) => QueueArrange(); // another screen or scale
             _tick.Start();
             _gaze.Start();
         };
         Closed += (_, _) =>
         {
-            _acrylic?.Dispose();
             _tick.Stop();
             _gaze.Stop();
         };
@@ -117,53 +116,45 @@ public sealed partial class PetWindow : Window
 
     // ── Theme ──────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>The chosen theme: overrides on the root, and Windows' acrylic only in the Windows theme.</summary>
     private void ApplyTheme(bool live = true)
     {
-        var theme = ViewModel.Theme;
-        Themes.Apply(Root, theme, live);
-        if (Themes.UsesBackdrop(theme) && _acrylic is null && DesktopAcrylicController.IsSupported())
-        {
-            // The pet never takes focus, so the configuration always says "active": otherwise acrylic goes flat.
-            _backdrop = new SystemBackdropConfiguration { IsInputActive = true };
-            _acrylic = new DesktopAcrylicController();
-            _acrylic.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
-            _acrylic.SetSystemBackdropConfiguration(_backdrop);
-        }
-        else if (!Themes.UsesBackdrop(theme) && _acrylic is not null)
-        {
-            _acrylic.Dispose();
-            _acrylic = null;
-            _backdrop = null;
-        }
-
+        Themes.Apply(Root, ViewModel.Theme, live, background: false); // the window stays see-through; the body has the colour
         Paint();
     }
 
     private void Paint()
     {
-        if (_backdrop is not null)
-        {
-            _backdrop.Theme = Root.ActualTheme == ElementTheme.Light ? SystemBackdropTheme.Light : SystemBackdropTheme.Dark;
-        }
-
         var (ink, alert) = Themes.FaceColors(ViewModel.Theme, Root.ActualTheme);
         BotFace.Paint(ink, alert);
+        var (fill, edge) = Themes.SurfaceColors(ViewModel.Theme, Root.ActualTheme);
+        _surface?.Paint(fill, ViewModel.Dock == Dock.Floating ? edge : null);
     }
 
-    // ── Size and place ─────────────────────────────────────────────────────────────────────
+    // ── Shape and place ────────────────────────────────────────────────────────────────────
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
         {
-            case nameof(PetViewModel.Look) or nameof(PetViewModel.Dock) or nameof(PetViewModel.VisibleRows)
-                or nameof(PetViewModel.IsEmpty) or nameof(PetViewModel.Section) or nameof(PetViewModel.ShowHiveory):
-                SyncTabs();
+            case nameof(PetViewModel.Look):
                 Arrange();
+                break;
+            case nameof(PetViewModel.VisibleRows) or nameof(PetViewModel.IsEmpty) or nameof(PetViewModel.Section) or nameof(PetViewModel.ShowHiveory):
+                SyncTabs();
+                QueueArrange(); // once the bindings have shown the new rows, so the list is measured as it now is
+                break;
+            case nameof(PetViewModel.Dock):
+                Paint();
+                Arrange();
+                break;
+            case nameof(PetViewModel.Size):
+                Arrange(jump: true);
                 break;
             case nameof(PetViewModel.Theme):
                 ApplyTheme();
+                break;
+            case nameof(PetViewModel.Eyes):
+                BotFace.SetEyes(ViewModel.Eyes);
                 break;
             case nameof(PetViewModel.Mood):
                 Face.Mood = SoloFace.Mood = ViewModel.Mood;
@@ -175,36 +166,41 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    /// <summary>A sound for everything that happens: a tick when an agent starts, a chime when done, a ping when it waits.</summary>
+    /// <summary>A sound for everything that happens: a tap when an agent starts, a chime when done, a knock when it waits.</summary>
     private void OnMoment(Moment moment)
     {
         NoteFace.Hop();
-        if (!ViewModel.Sounds)
+        if (!ViewModel.SoundsOn || moment is not (Moment.Started or Moment.Finished or Moment.NeedsYou or Moment.Failed))
         {
             return;
         }
 
-        switch (moment)
+        var kind = moment switch { Moment.Started => SoundKind.Started, Moment.Finished => SoundKind.Finished, _ => SoundKind.NeedsYou };
+        Chime.Play(kind, ViewModel.Sounds[(int)kind].File, (int)ViewModel.Volume);
+    }
+
+    /// <summary>Re-arranges once, after a burst of changes (tasks added, rows changing).</summary>
+    private void QueueArrange()
+    {
+        if (!_arrangeQueued)
         {
-            case Moment.NeedsYou or Moment.Failed:
-                Chime.NeedsYou();
-                break;
-            case Moment.Finished:
-                Chime.Finished();
-                break;
-            case Moment.Started:
-                Chime.Working();
-                break;
+            _arrangeQueued = true;
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            {
+                _arrangeQueued = false;
+                Arrange();
+            });
         }
     }
 
     /// <summary>
-    /// Works out the window for the current look. The note appears at its one size and leaves the same way (its
-    /// content fades first); only opening and closing the list glides.
+    /// Works out where everything goes and moves Pluto's body there. The window moves only when Pluto does (a new spot,
+    /// another screen); looks change by reshaping the body: the list glides open and closed, pointing at Pluto makes it
+    /// pop, and a note appears at its one size and leaves the same way (its content fades first).
     /// </summary>
     private void Arrange(bool jump = false)
     {
-        if (Root.XamlRoot is null || _dragging)
+        if (Root.XamlRoot is null || _surface is null || _dragging)
         {
             return;
         }
@@ -216,121 +212,134 @@ public sealed partial class PetWindow : Window
             return;
         }
 
-        var instant = jump || look == Look.Note || _shown == Look.Note;
-        if (look == Look.Note && _shown != Look.Note)
-        {
-            // In it pops: a small drop and a fade, like a Windows flyout.
-            NoteLayer.Translation = new System.Numerics.Vector3(0, -6, 0);
-            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => NoteLayer.Translation = System.Numerics.Vector3.Zero);
-        }
-
         // Open, the list is an ordinary window, so clicking into it (to type a task) gives it focus the normal way;
         // small or showing a note, Pluto never takes focus from what you're doing.
         Native.SetActivatable(_hwnd, look == Look.List);
 
-        _shown = look;
         var scale = Root.XamlRoot.RasterizationScale;
-        var notch = ViewModel.Dock == Dock.Notch;
         var s = ViewModel.Settings;
-
-        // In the notch the rounded top corners sit above the screen edge; the content moves down to match.
-        var tuck = notch ? (int)Math.Round(Corner * scale) : 0;
-        Root.Padding = new Thickness(0, notch ? Corner : 0, 0, 0);
-        Panel.HorizontalAlignment = notch ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-
-        var (width, height) = look switch
-        {
-            Look.Tucked => (84.0, 28.0),
-            Look.Face => (72.0, 56.0),
-            Look.Note => (NoteWidth, 56.0),
-            _ => (380.0, 56 + PanelHeight()),
-        };
-        var w = (int)Math.Round(width * scale);
-        var h = (int)Math.Round(height * scale) + tuck;
-
+        var notch = ViewModel.Dock == Dock.Notch;
         var display = !notch && s.FloatX is { } fx && s.FloatY is { } fy
             ? DisplayArea.GetFromPoint(new PointInt32(fx, fy), DisplayAreaFallback.Primary)
-            : DisplayArea.Primary;
+            : notch && s.NotchX is { } nx
+                ? DisplayArea.GetFromPoint(new PointInt32(nx, 0), DisplayAreaFallback.Primary)
+                : DisplayArea.Primary;
         var work = new Box(display.WorkArea.X, display.WorkArea.Y, display.WorkArea.Width, display.WorkArea.Height);
-        var target = notch
-            ? Placement.Notch(w, h, work, s.NotchX, tuck)
-            : Placement.Clamp(new Box(s.FloatX ?? (work.CenterX - (w / 2)), s.FloatY ?? (work.Y + (int)(120 * scale)), w, h), work);
-        GlideTo(target, instant);
+        var layout = Placement.Lay(ViewModel.Dock, ViewModel.Size, work, scale, s.NotchX, s.FloatX, s.FloatY, ListHeight());
+        _layout = layout;
+        Place(layout);
+
+        var moved = layout.Window != _window;
+        if (moved)
+        {
+            _window = layout.Window;
+            AppWindow.MoveAndResize(new RectInt32(_window.X, _window.Y, _window.Width, _window.Height));
+        }
+
+        var flare = notch ? Placement.Flare(ViewModel.Size) : 0;
+        _surface.Shape(flare, scale);
+        var target = layout.For(look);
+        if (_hover && look is Look.Tucked or Look.Face)
+        {
+            target = Placement.Pop(target, ViewModel.Dock, layout.Zoom);
+        }
+
+        TuckedFace.Scale = SoloFace.Scale = new Vector3(_hover ? 1.08f : 1f, _hover ? 1.08f : 1f, 1);
+
+        var motion = jump || look == Look.Note || _shown == Look.Note ? Motion.Jump
+            : look == Look.List && _shown != Look.List ? Motion.Open
+            : _shown == Look.List && look != Look.List ? Motion.Close
+            : look == Look.List ? Motion.Open
+            : Motion.Pop;
+        if (_glideFrom is { } from)
+        {
+            // Dropped: start where it was let go, then glide into its new spot.
+            _surface.MoveTo(new Area((from.X - _window.X) / scale, (from.Y - _window.Y) / scale, from.Width / scale, from.Height / scale), Radius(look, notch, layout), Motion.Jump);
+            motion = Motion.Open;
+            _glideFrom = null;
+        }
+        else if (moved)
+        {
+            motion = Motion.Jump;
+        }
+
+        _shown = look;
+        var settledHit = look is Look.Tucked or Look.Face ? Placement.Pop(layout.Small, ViewModel.Dock, layout.Zoom) : target;
+        _hit = motion == Motion.Jump ? settledHit : _hit.Union(settledHit);
+        SetHit(_hit, flare, scale);
+        _surface.MoveTo(target, Radius(look, notch, layout), motion, () =>
+        {
+            _hit = settledHit;
+            SetHit(_hit, flare, scale);
+        });
     }
 
-    /// <summary>The list's natural height, capped so it never covers half the screen.</summary>
-    private double PanelHeight()
+    /// <summary>How round the body's corners are for a look.</summary>
+    private static double Radius(Look look, bool notch, Layout layout) => (look, notch) switch
     {
-        Panel.Measure(new Windows.Foundation.Size(380, double.PositiveInfinity));
-        return Math.Min(Panel.DesiredSize.Height, 470);
-    }
+        (Look.Tucked or Look.Face, true) => 11 * layout.Zoom,
+        (Look.Tucked or Look.Face, false) => 18 * layout.Zoom,
+        (Look.Note, _) => 20 * layout.NoteZoom,
+        (_, true) => 22,
+        _ => 16,
+    };
 
-    private void GlideTo(Box target, bool jump)
+    /// <summary>Only the body (and its shoulders) takes the mouse; around it, clicks go to the windows below.</summary>
+    private void SetHit(Area area, double flare, double scale)
     {
-        _x.Target = target.X;
-        _y.Target = target.Y;
-        _w.Target = target.Width;
-        _h.Target = target.Height;
-        if (jump)
-        {
-            StopGlide();
-            foreach (var spring in new[] { _x, _y, _w, _h })
-            {
-                spring.Jump();
-            }
-
-            Apply();
-            return;
-        }
-
-        if (!_animating)
-        {
-            var now = AppWindow.Position;
-            var size = AppWindow.Size;
-            _x.From(now.X);
-            _y.From(now.Y);
-            _w.From(size.Width);
-            _h.From(size.Height);
-            _animating = true;
-            _clock.Restart();
-            CompositionTarget.Rendering += OnFrame;
-        }
+        var x = (int)Math.Floor((area.X - flare) * scale) - 1;
+        var y = (int)Math.Floor(area.Y * scale) - 1;
+        Native.SetHitArea(_hwnd, Math.Max(0, x), Math.Max(0, y), (int)Math.Ceiling((area.Width + (2 * flare)) * scale) + 2, (int)Math.Ceiling(area.Height * scale) + 2);
     }
 
-    /// <summary>One frame of the glide, in step with the display.</summary>
-    private void OnFrame(object? sender, object e)
+    /// <summary>Puts each look's content in its spot, at the chosen size.</summary>
+    private void Place(Layout layout)
     {
-        var dt = Math.Min(_clock.Elapsed.TotalSeconds, 1 / 30.0);
-        _clock.Restart();
-        var settled = true;
-        foreach (var spring in new[] { _x, _y, _w, _h })
-        {
-            settled &= spring.Step(dt);
-        }
+        var k = layout.Zoom;
+        Center(TuckedFace, layout.Small, 44 * k, 20 * k, k);
+        Center(SoloFace, layout.Small, 48 * k, 38 * k, k);
 
-        Apply();
-        if (settled)
-        {
-            StopGlide();
-        }
+        var kn = layout.NoteZoom;
+        NoteLayer.Width = layout.Note.Width;
+        NoteLayer.Height = layout.Note.Height;
+        NoteLayer.Padding = new Thickness(12 * kn, 0, 16 * kn, 0);
+        NoteLayer.ColumnSpacing = 12 * kn;
+        NoteFace.Width = 48 * kn;
+        NoteFace.Height = 38 * kn;
+        NoteFace.Zoom = kn;
+        NoteTitle.FontSize = 14 * kn;
+        NoteText.FontSize = 12 * kn;
+        NoteIcon.Width = NoteIcon.Height = 20 * kn;
+        Canvas.SetLeft(NoteLayer, layout.Note.X);
+        Canvas.SetTop(NoteLayer, layout.Note.Y);
+
+        Canvas.SetLeft(ListLayer, layout.List.X);
+        Canvas.SetTop(ListLayer, layout.List.Y);
     }
 
-    private void Apply() => AppWindow.MoveAndResize(new RectInt32(_x.Round, _y.Round, Math.Max(1, _w.Round), Math.Max(1, _h.Round)));
-
-    private void StopGlide()
+    private static void Center(BotFace face, Area area, double width, double height, double zoom)
     {
-        if (_animating)
-        {
-            CompositionTarget.Rendering -= OnFrame;
-            _animating = false;
-        }
+        face.Width = width;
+        face.Height = height;
+        face.Zoom = zoom;
+        Canvas.SetLeft(face, area.CenterX - (width / 2));
+        Canvas.SetTop(face, area.CenterY - (height / 2));
     }
 
-    // ── Pointer: click opens the list, drag moves the pet ───────────────────────────────────
+    /// <summary>The list's natural height: its heading and the section on show.</summary>
+    private double ListHeight()
+    {
+        ListLayer.Measure(new Windows.Foundation.Size(Placement.ListWidth, double.PositiveInfinity));
+        return ListLayer.DesiredSize.Height;
+    }
+
+    // ── Pointer: point to pop, click to open, drag to move ─────────────────────────────────
 
     private void OnPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (!e.GetCurrentPoint(Root).Properties.IsLeftButtonPressed)
+        // Open, only the heading takes a click (it folds the list); small, a press may become a drag.
+        var heading = ViewModel.Look == Look.List && e.GetCurrentPoint(ListLayer).Position.Y < 56;
+        if ((ViewModel.Look == Look.List && !heading) || !e.GetCurrentPoint(Root).Properties.IsLeftButtonPressed)
         {
             return;
         }
@@ -349,13 +358,12 @@ public sealed partial class PetWindow : Window
         }
 
         var (cx, cy) = Native.Cursor();
-        if (!_dragging && Math.Sqrt(Math.Pow(cx - _pressCursor.X, 2) + Math.Pow(cy - _pressCursor.Y, 2)) < 5 * Root.XamlRoot.RasterizationScale)
+        if (ViewModel.Look == Look.List || (!_dragging && Math.Sqrt(Math.Pow(cx - _pressCursor.X, 2) + Math.Pow(cy - _pressCursor.Y, 2)) < 5 * Root.XamlRoot.RasterizationScale))
         {
             return;
         }
 
         _dragging = true;
-        StopGlide();
         FollowCursor();
     }
 
@@ -393,36 +401,57 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    /// <summary>Near the top edge: a notch right there. Anywhere else: it floats where it is.</summary>
+    /// <summary>Near the top edge: a notch right there. Anywhere else: it floats where it is. Either way it glides into place.</summary>
     private void Dropped()
     {
         _dragging = false;
-        var scale = Root.XamlRoot.RasterizationScale;
-        var display = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
-        var work = new Box(display.WorkArea.X, display.WorkArea.Y, display.WorkArea.Width, display.WorkArea.Height);
-        var p = AppWindow.Position;
-        var size = AppWindow.Size;
-        var window = new Box(p.X, p.Y, size.Width, size.Height);
-        if (Placement.NearTop(window, work, scale))
+        if (_layout is null)
         {
-            ViewModel.NotchAt(window.CenterX);
+            return;
+        }
+
+        var scale = Root.XamlRoot.RasterizationScale;
+        var p = AppWindow.Position;
+        var here = new Box(p.X, p.Y, _window.Width, _window.Height);
+        var face = Placement.OnScreen(_layout.Small, here, scale);
+        var display = DisplayArea.GetFromPoint(new PointInt32(face.CenterX, face.Y), DisplayAreaFallback.Primary);
+        var work = new Box(display.WorkArea.X, display.WorkArea.Y, display.WorkArea.Width, display.WorkArea.Height);
+        _glideFrom = Placement.OnScreen(Placement.Pop(_layout.Small, ViewModel.Dock, _layout.Zoom), here, scale);
+        _window = here;
+        if (Placement.NearTop(face, work, scale))
+        {
+            ViewModel.NotchAt(face.CenterX);
         }
         else
         {
-            ViewModel.FloatAt(p.X, p.Y);
+            ViewModel.FloatAt(face.X, face.Y); // either way the view model says the dock changed, which arranges
         }
-
-        Arrange();
     }
 
-    private void OnEntered(object sender, PointerRoutedEventArgs e) => _leave.Stop();
+    private void OnEntered(object sender, PointerRoutedEventArgs e)
+    {
+        _leave.Stop();
+        if (!_hover && !_pressed)
+        {
+            _hover = true;
+            Arrange();
+        }
+    }
 
-    private void OnExited(object sender, PointerRoutedEventArgs e) => _leave.Start();
+    private void OnExited(object sender, PointerRoutedEventArgs e)
+    {
+        _leave.Start();
+        if (_hover && !_dragging)
+        {
+            _hover = false;
+            Arrange();
+        }
+    }
 
-    /// <summary>The pointer stayed away from the open list: fold it (not while you type into it).</summary>
+    /// <summary>The pointer stayed away from the open list: fold it (not while you type into it or move a task).</summary>
     private void Leave()
     {
-        if (_menuOpen || _pressed || CursorInside() || AddBox.FocusState != FocusState.Unfocused)
+        if (_menuOpen || _pressed || _slots is not null || CursorInside() || FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox)
         {
             return;
         }
@@ -432,10 +461,14 @@ public sealed partial class PetWindow : Window
 
     private bool CursorInside()
     {
+        if (_layout is null)
+        {
+            return false;
+        }
+
         var (x, y) = Native.Cursor();
-        var p = AppWindow.Position;
-        var s = AppWindow.Size;
-        return x >= p.X && x < p.X + s.Width && y >= p.Y && y < p.Y + s.Height;
+        var r = Placement.OnScreen(_layout.For(ViewModel.Look), _window, Root.XamlRoot.RasterizationScale);
+        return x >= r.X && x < r.Right && y >= r.Y && y < r.Bottom;
     }
 
     /// <summary>The eyes follow the cursor around the screen.</summary>
@@ -494,7 +527,6 @@ public sealed partial class PetWindow : Window
             ViewModel.Todo.Add(AddBox.Text);
             AddBox.Text = string.Empty;
             e.Handled = true;
-            Arrange();
         }
         else if (e.Key == VirtualKey.Escape)
         {
@@ -511,77 +543,274 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    private void OnTodoDragged(ListViewBase sender, DragItemsCompletedEventArgs args)
+    private TodoItemViewModel? Item(object sender) =>
+        ((FrameworkElement)sender).Tag is string id ? ViewModel.Todo.Items.FirstOrDefault(t => t.Id == id) : null;
+
+    /// <summary>Pointing at a task shows its grip, rename and delete.</summary>
+    private void OnTodoEnter(object sender, PointerRoutedEventArgs e) => ShowTools((Grid)sender, true);
+
+    private void OnTodoExit(object sender, PointerRoutedEventArgs e) => ShowTools((Grid)sender, _slots is not null && ReferenceEquals(_dragRow, sender));
+
+    private static void ShowTools(Grid row, bool on)
     {
-        if (args.Items.FirstOrDefault() is TodoItemViewModel item)
+        ((Border)row.Children[0]).Child.Opacity = on ? 1 : 0;
+        row.Children[^1].Opacity = on ? 1 : 0;
+    }
+
+    private void OnTodoDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if (Item(sender) is { } item && e.OriginalSource is not CheckBox)
         {
-            ViewModel.Todo.MoveTo(item.Id, ViewModel.Todo.Items.IndexOf(item));
+            StartEditing((Grid)sender, item);
         }
     }
 
-    /// <summary>Right-click a task: rename it or delete it.</summary>
-    private void OnTodoRightTapped(object sender, RightTappedRoutedEventArgs e)
+    private void OnEditClick(object sender, RoutedEventArgs e)
     {
-        e.Handled = true;
-        if (((FrameworkElement)sender).Tag is not string id || ViewModel.Todo.Items.FirstOrDefault(t => t.Id == id) is not { } item)
+        if (Item(sender) is { } item && ((FrameworkElement)sender).Parent is FrameworkElement { Parent: Grid row })
+        {
+            StartEditing(row, item);
+        }
+    }
+
+    private void OnDeleteClick(object sender, RoutedEventArgs e)
+    {
+        if (Item(sender) is { } item)
+        {
+            ViewModel.Todo.Delete(item.Id);
+        }
+    }
+
+    /// <summary>Keys on a task: F2 renames, Delete deletes, Alt+Up and Alt+Down move it.</summary>
+    private void OnTodoKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (Item(sender) is not { } item || e.OriginalSource is TextBox)
         {
             return;
         }
 
-        var rename = new MenuFlyoutItem { Text = "Rename", Icon = new FontIcon { Glyph = "" } };
-        rename.Click += (_, _) => Rename((FrameworkElement)sender, item);
-        var delete = new MenuFlyoutItem { Text = "Delete", Icon = new FontIcon { Glyph = "" } };
-        delete.Click += (_, _) =>
+        var alt = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var at = ViewModel.Todo.Items.IndexOf(item);
+        switch (e.Key)
         {
-            ViewModel.Todo.Delete(id);
-            Arrange();
-        };
-        var menu = new MenuFlyout { ShouldConstrainToRootBounds = false };
-        menu.Items.Add(rename);
-        menu.Items.Add(delete);
-        menu.Opened += (_, _) => _menuOpen = true;
-        menu.Closed += (_, _) => _menuOpen = false;
-        menu.ShowAt((FrameworkElement)sender, e.GetPosition((FrameworkElement)sender));
+            case VirtualKey.F2:
+                StartEditing((Grid)sender, item);
+                break;
+            case VirtualKey.Delete:
+                ViewModel.Todo.Delete(item.Id);
+                break;
+            case VirtualKey.Up when alt && at > 0:
+                ViewModel.Todo.MoveTo(item.Id, at - 1);
+                break;
+            case VirtualKey.Down when alt && at < ViewModel.Todo.Items.Count - 1:
+                ViewModel.Todo.MoveTo(item.Id, at + 1);
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
     }
 
-    private void Rename(FrameworkElement anchor, TodoItemViewModel item)
+    /// <summary>Renames in place: the text becomes a box, Enter keeps it, Escape leaves it as it was.</summary>
+    private void StartEditing(Grid row, TodoItemViewModel item)
     {
-        var box = new TextBox { Text = item.Text, Width = 260, AcceptsReturn = false };
-        var flyout = new Flyout { Content = box, ShouldConstrainToRootBounds = false };
-        box.KeyDown += (_, e) =>
+        item.IsEditing = true;
+        var box = row.Children.OfType<TextBox>().First();
+        box.Text = item.Text;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
         {
-            if (e.Key == VirtualKey.Enter)
-            {
-                ViewModel.Todo.Edit(item.Id, box.Text);
-                flyout.Hide();
-            }
-        };
-        flyout.Opened += (_, _) =>
-        {
-            _menuOpen = true;
-            Native.SetActivatable(_hwnd, true);
             Native.Focus(_hwnd);
             box.Focus(FocusState.Programmatic);
             box.SelectAll();
+        });
+    }
+
+    private void OnEditKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (Item(sender) is not { } item)
+        {
+            return;
+        }
+
+        if (e.Key == VirtualKey.Enter)
+        {
+            FinishEditing((TextBox)sender, item, keep: true);
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.Escape)
+        {
+            FinishEditing((TextBox)sender, item, keep: false);
+            e.Handled = true;
+        }
+    }
+
+    private void OnEditLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (Item(sender) is { IsEditing: true } item)
+        {
+            FinishEditing((TextBox)sender, item, keep: true);
+        }
+    }
+
+    private void FinishEditing(TextBox box, TodoItemViewModel item, bool keep)
+    {
+        item.IsEditing = false;
+        if (keep && box.Text.Trim().Length > 0 && box.Text.Trim() != item.Text)
+        {
+            ViewModel.Todo.Edit(item.Id, box.Text);
+        }
+    }
+
+    // Moving a task: drag its grip. The task follows the pointer and the others slide aside; on release it settles
+    // into its slot and the list takes the new order.
+    private List<(UIElement Row, double Top, double Height)>? _slots;
+    private Grid? _dragRow;
+    private int _from;
+    private int _to;
+    private double _startY;
+
+    private void OnGripPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var grip = (FrameworkElement)sender;
+        if (Item(sender) is not { } item || !e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        var slots = new List<(UIElement Row, double Top, double Height)>();
+        foreach (var t in ViewModel.Todo.Items)
+        {
+            if (TodoList.ContainerFromItem(t) is not UIElement row)
+            {
+                return; // not all on screen (a long list scrolled): moving by keyboard still works
+            }
+
+            slots.Add((row, row.TransformToVisual(TodoList).TransformPoint(default).Y, row.ActualSize.Y));
+        }
+
+        _slots = slots;
+        _from = _to = ViewModel.Todo.Items.IndexOf(item);
+        _dragRow = grip.Parent as Grid;
+        _startY = e.GetCurrentPoint(TodoList).Position.Y;
+        for (var i = 0; i < slots.Count; i++)
+        {
+            var row = slots[i].Row;
+            row.TranslationTransition = i == _from ? null : new Vector3Transition { Duration = TimeSpan.FromMilliseconds(170) };
+            Canvas.SetZIndex(row, i == _from ? 1 : 0);
+        }
+
+        var lifted = slots[_from].Row;
+        lifted.CenterPoint = new Vector3(lifted.ActualSize.X / 2, lifted.ActualSize.Y / 2, 0);
+        lifted.ScaleTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(120) };
+        lifted.Scale = new Vector3(1.02f, 1.02f, 1);
+        grip.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void OnGripMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_slots is not { } slots)
+        {
+            return;
+        }
+
+        var (_, top, height) = slots[_from];
+        var dy = Math.Clamp(e.GetCurrentPoint(TodoList).Position.Y - _startY, -top, slots[^1].Top + slots[^1].Height - top - height);
+        slots[_from].Row.Translation = new Vector3(0, (float)dy, 0);
+
+        var middle = top + (height / 2) + dy;
+        var to = _from;
+        for (var i = 0; i < slots.Count; i++)
+        {
+            var center = slots[i].Top + (slots[i].Height / 2);
+            if ((i < _from && middle < center && to == _from) || (i > _from && middle > center))
+            {
+                to = i;
+            }
+        }
+
+        _to = to;
+        for (var i = 0; i < slots.Count; i++)
+        {
+            if (i != _from)
+            {
+                var shift = i > _from && i <= to ? -height : i < _from && i >= to ? height : 0;
+                slots[i].Row.Translation = new Vector3(0, (float)shift, 0);
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnGripReleased(object sender, PointerRoutedEventArgs e)
+    {
+        ((UIElement)sender).ReleasePointerCapture(e.Pointer);
+        Drop();
+    }
+
+    private void OnGripLost(object sender, PointerRoutedEventArgs e) => Drop();
+
+    private void Drop()
+    {
+        if (_slots is not { } slots)
+        {
+            return;
+        }
+
+        _slots = null;
+        var (from, to) = (_from, _to);
+        var id = ViewModel.Todo.Items[from].Id;
+        var lifted = slots[from].Row;
+        var offset = to > from ? slots.Skip(from + 1).Take(to - from).Sum(s => s.Height)
+            : -slots.Skip(to).Take(from - to).Sum(s => s.Height);
+        lifted.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(150) };
+        lifted.Translation = new Vector3(0, (float)offset, 0);
+        lifted.Scale = Vector3.One;
+        if (_dragRow is { } row)
+        {
+            ShowTools(row, false);
+        }
+
+        var commit = DispatcherQueue.CreateTimer();
+        commit.Interval = TimeSpan.FromMilliseconds(160);
+        commit.IsRepeating = false;
+        commit.Tick += (_, _) =>
+        {
+            // Settle without a jump: the rows already sit where the new order puts them.
+            foreach (var (r, _, _) in slots)
+            {
+                r.TranslationTransition = null;
+                r.Translation = Vector3.Zero;
+                Canvas.SetZIndex(r, 0);
+            }
+
+            ViewModel.Todo.MoveTo(id, to);
         };
-        flyout.Closed += (_, _) => _menuOpen = false;
-        flyout.ShowAt(anchor);
+        commit.Start();
     }
 
     // ── Actions ────────────────────────────────────────────────────────────────────────────
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
 
-    /// <summary>One settings window; asking again brings it to the front.</summary>
+    /// <summary>One settings window, kept on top just above the pet; asking again brings it to the front.</summary>
     public void OpenSettings()
     {
-        if (_settings is null)
-        {
-            _settings = new SettingsWindow(ViewModel);
-            _settings.Closed += (_, _) => _settings = null;
-        }
-
+        var first = _settings is null;
+        _settings ??= new SettingsWindow(ViewModel);
+        var hwnd = WindowNative.GetWindowHandle(_settings);
         _settings.Present();
+        if (first)
+        {
+            _settings.Closed += (_, _) =>
+            {
+                Native.LetGo(hwnd);
+                _settings = null;
+            };
+            Native.KeepOnTop(hwnd); // after the pet, so it is raised above it
+
+        }
     }
 
     private void OnRowClick(object sender, ItemClickEventArgs e)
@@ -627,41 +856,5 @@ public sealed partial class PetWindow : Window
         timer.Interval = TimeSpan.FromMilliseconds(ms);
         timer.Tick += (_, _) => tick();
         return timer;
-    }
-
-    /// <summary>A damped spring for one edge of the window: quick, with the faintest settle at the end.</summary>
-    private sealed class Spring
-    {
-        private const double Stiffness = 520;
-        private static readonly double Damping = 2 * Math.Sqrt(Stiffness) * 0.86;
-
-        private double _value;
-        private double _velocity;
-
-        public double Target { get; set; }
-
-        public int Round => (int)Math.Round(_value);
-
-        public void From(double value) => _value = value;
-
-        public void Jump()
-        {
-            _value = Target;
-            _velocity = 0;
-        }
-
-        /// <summary>Advances <paramref name="dt"/> seconds; true once it has come to rest.</summary>
-        public bool Step(double dt)
-        {
-            _velocity += ((Stiffness * (Target - _value)) - (Damping * _velocity)) * dt;
-            _value += _velocity * dt;
-            if (Math.Abs(Target - _value) < 0.5 && Math.Abs(_velocity) < 8)
-            {
-                Jump();
-                return true;
-            }
-
-            return false;
-        }
     }
 }

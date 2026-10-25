@@ -10,9 +10,10 @@ using Microsoft.UI.Xaml.Shapes;
 namespace Pluto;
 
 /// <summary>
-/// The pet's face, drawn in dots: two dot-matrix eyes that blink and follow the cursor, a dot smile, three thinking
-/// dots while an agent works, and a caution dot when one needs you. Colours are theme tokens (light or dark). Every movement is a
-/// composition animation or an implicit transition, so it runs on the compositor thread at the display's frame rate.
+/// The pet's face: two eyes (a little grid of dots, or soft ovals) that blink and follow the cursor, a smile, three
+/// thinking dots while an agent works, and a caution dot when one needs you. Colours come from the theme. Every
+/// movement is a composition animation or an implicit transition, so it runs on the compositor thread at the display's
+/// frame rate. <see cref="Zoom"/> draws it bigger, crisply.
 /// </summary>
 public sealed partial class BotFace : Grid
 {
@@ -24,8 +25,11 @@ public sealed partial class BotFace : Grid
     // One brush each, shared by every dot, recoloured when the theme changes.
     private static readonly SolidColorBrush Ink = new();
     private static readonly SolidColorBrush Alert = new();
+    private static EyeStyle s_eyes;
+    private static event Action? EyesChanged;
 
     private readonly Canvas _stage = new();
+    private readonly Canvas _zoomer = new(); // holds the zoom: the stage's own scale is the breathing
     private readonly Canvas _eyes = new();
     private readonly Canvas _left;
     private readonly Canvas _right;
@@ -37,18 +41,51 @@ public sealed partial class BotFace : Grid
     private DispatcherQueueTimer? _blink;
     private Compositor? _compositor;
     private Mood _mood = Mood.Idle;
+    private double _zoom = 1;
 
     public BotFace()
     {
         IsHitTestVisible = false;
         Recolor();
-        _left = Eye();
-        _right = Eye();
+        _left = new Canvas { Width = Pitch + Dot, Height = ((EyeRows - 1) * Pitch) + Dot };
+        _right = new Canvas { Width = _left.Width, Height = _left.Height };
         _alert = new Ellipse { Width = 5.4, Height = 5.4, Fill = Alert, Opacity = 0 };
-        Children.Add(_stage);
-        Loaded += (_, _) => Start();
-        Unloaded += (_, _) => _blink?.Stop();
+        _zoomer.Children.Add(_stage);
+        Children.Add(_zoomer);
+        Loaded += (_, _) =>
+        {
+            Start();
+            EyesChanged += Restyle;
+            Restyle();
+        };
+        Unloaded += (_, _) =>
+        {
+            _blink?.Stop();
+            EyesChanged -= Restyle;
+        };
         SizeChanged += (_, _) => Lay();
+    }
+
+    /// <summary>Every face's eyes: dots or ovals.</summary>
+    public static void SetEyes(EyeStyle eyes)
+    {
+        if (eyes != s_eyes)
+        {
+            s_eyes = eyes;
+            EyesChanged?.Invoke();
+        }
+    }
+
+    /// <summary>How much bigger than its usual size the face draws (the element itself should be that much bigger).</summary>
+    public double Zoom
+    {
+        get => _zoom;
+        set
+        {
+            _zoom = value;
+            _zoomer.RenderTransform = new ScaleTransform { ScaleX = value, ScaleY = value };
+            Lay();
+        }
     }
 
     /// <summary>Colours every face: the dots and the alert dot (the theme decides them).</summary>
@@ -118,27 +155,21 @@ public sealed partial class BotFace : Grid
         _eyes.ScaleTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(260) };
         _eyes.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(160) };
 
+        if (_stage.Children.Count > 0)
+        {
+            ScheduleBlink();
+            return; // loaded again after a move: already set up
+        }
+
         _stage.Children.Add(_eyes);
         _stage.Children.Add(_happy);
         _eyes.Children.Add(_left);
         _eyes.Children.Add(_right);
-        foreach (var (x, y) in new[] { (-1.0, 0.9), (-0.5, 0.2), (0.0, -0.5), (0.5, 0.2), (1.0, 0.9) })
-        {
-            AddDot(_happy, (-EyeGap / 2) + (x * Pitch * 0.75), y * Pitch * 0.8, Dot);
-            AddDot(_happy, (EyeGap / 2) + (x * Pitch * 0.75), y * Pitch * 0.8, Dot);
-        }
-
         if (!EyesOnly)
         {
             _stage.Children.Add(_smile);
             _stage.Children.Add(_thinking);
             _stage.Children.Add(_alert);
-            double[] lift = [0, 0.6, 0.85, 0.6, 0];
-            for (var i = 0; i < 5; i++)
-            {
-                AddDot(_smile, (i - 2) * Pitch * 0.9, lift[i] * Pitch * 0.6, Dot * 0.8);
-            }
-
             for (var i = 0; i < 3; i++)
             {
                 _thinkingDots.Add(AddDot(_thinking, (i - 1) * Pitch * 1.25, 0, Dot * 0.9));
@@ -153,11 +184,91 @@ public sealed partial class BotFace : Grid
         ApplyMood();
     }
 
-    /// <summary>Places the groups for the current size: eyes up top, mouth below (eyes centred when alone).</summary>
+    /// <summary>Draws the eyes, the happy eyes and the smile in the chosen style.</summary>
+    private void Restyle()
+    {
+        _left.Children.Clear();
+        _right.Children.Clear();
+        _happy.Children.Clear();
+        _smile.Children.Clear();
+        var oval = s_eyes == EyeStyle.Oval;
+        foreach (var eye in new[] { _left, _right })
+        {
+            if (oval)
+            {
+                var o = new Ellipse { Width = 7.4, Height = 12.2, Fill = Ink };
+                Canvas.SetLeft(o, (eye.Width - o.Width) / 2);
+                Canvas.SetTop(o, (eye.Height - o.Height) / 2);
+                eye.Children.Add(o);
+                continue;
+            }
+
+            for (var r = 0; r < EyeRows; r++)
+            {
+                for (var c = 0; c < 2; c++)
+                {
+                    var dot = new Ellipse { Width = Dot, Height = Dot, Fill = Ink };
+                    Canvas.SetLeft(dot, c * Pitch);
+                    Canvas.SetTop(dot, r * Pitch);
+                    eye.Children.Add(dot);
+                }
+            }
+        }
+
+        foreach (var side in new[] { -1.0, 1.0 })
+        {
+            var cx = side * EyeGap / 2;
+            if (oval)
+            {
+                _happy.Children.Add(Stroke(cx - 4, 2, cx, -4.4, cx + 4, 2, 2.6)); // happy eyes: two little arches
+                continue;
+            }
+
+            foreach (var (x, y) in new[] { (-1.0, 0.9), (-0.5, 0.2), (0.0, -0.5), (0.5, 0.2), (1.0, 0.9) })
+            {
+                AddDot(_happy, cx + (x * Pitch * 0.75), y * Pitch * 0.8, Dot);
+            }
+        }
+
+        if (oval)
+        {
+            _smile.Children.Add(Stroke(-6.5, -1.2, 0, 4.6, 6.5, -1.2, 2.2));
+        }
+        else
+        {
+            double[] lift = [0, 0.6, 0.85, 0.6, 0];
+            for (var i = 0; i < 5; i++)
+            {
+                AddDot(_smile, (i - 2) * Pitch * 0.9, lift[i] * Pitch * 0.6, Dot * 0.8);
+            }
+        }
+    }
+
+    /// <summary>A soft curved stroke with round ends, from (x1, y1) to (x2, y2), bending towards (cx, cy).</summary>
+    private static Microsoft.UI.Xaml.Shapes.Path Stroke(double x1, double y1, double cx, double cy, double x2, double y2, double thickness)
+    {
+        var figure = new PathFigure { StartPoint = new Windows.Foundation.Point(x1, y1), IsClosed = false, IsFilled = false };
+        figure.Segments.Add(new QuadraticBezierSegment { Point1 = new Windows.Foundation.Point(cx, cy), Point2 = new Windows.Foundation.Point(x2, y2) });
+        var geometry = new PathGeometry();
+        geometry.Figures.Add(figure);
+        return new Microsoft.UI.Xaml.Shapes.Path
+        {
+            Data = geometry,
+            Stroke = Ink,
+            StrokeThickness = thickness,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+        };
+    }
+
+    /// <summary>
+    /// Places the groups: eyes up top, mouth below (eyes centred when alone). They are laid out at the usual size and
+    /// the zoom scales the whole drawing, so a bigger face is the same face, not a rearranged one.
+    /// </summary>
     private void Lay()
     {
-        var w = ActualWidth;
-        var h = ActualHeight;
+        var w = ActualWidth / _zoom;
+        var h = ActualHeight / _zoom;
         if (w <= 0 || h <= 0)
         {
             return;
@@ -174,7 +285,8 @@ public sealed partial class BotFace : Grid
         Place(_smile, w / 2, h * 0.75);
         Place(_thinking, w / 2, h * 0.8);
         Place(_alert, w - 6.5, 1.2);
-        _stage.CenterPoint = CenterPoint = new Vector3((float)(w / 2), (float)(h / 2), 0);
+        _stage.CenterPoint = new Vector3((float)(w / 2), (float)(h / 2), 0);
+        CenterPoint = new Vector3((float)(ActualWidth / 2), (float)(ActualHeight / 2), 0);
     }
 
     private void ApplyMood()
@@ -288,23 +400,6 @@ public sealed partial class BotFace : Grid
         }
 
         ScheduleBlink();
-    }
-
-    private static Canvas Eye()
-    {
-        var eye = new Canvas { Width = Pitch + Dot, Height = ((EyeRows - 1) * Pitch) + Dot };
-        for (var r = 0; r < EyeRows; r++)
-        {
-            for (var c = 0; c < 2; c++)
-            {
-                var dot = new Ellipse { Width = Dot, Height = Dot, Fill = Ink };
-                Canvas.SetLeft(dot, c * Pitch);
-                Canvas.SetTop(dot, r * Pitch);
-                eye.Children.Add(dot);
-            }
-        }
-
-        return eye;
     }
 
     /// <summary>A dot centred on (x, y) of <paramref name="group"/>.</summary>

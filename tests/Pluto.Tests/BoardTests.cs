@@ -81,15 +81,65 @@ public class PlacementTests
     [Fact]
     public void The_notch_hangs_from_the_top_edge_wherever_it_was_put()
     {
-        Assert.Equal(new Box(810, -10, 300, 60), Placement.Notch(300, 60, Work, null, 10));
-        Assert.Equal(new Box(250, -10, 300, 60), Placement.Notch(300, 60, Work, 400, 10));
+        var middle = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, null, null, null, 300);
+        Assert.Equal(new Box(740, 0, 440, 560), middle.Window);
+        Assert.Equal(new Area(178, 0, 84, 28), middle.Small);
+        Assert.Equal(220, middle.List.CenterX);
+        Assert.Equal(0, middle.List.Y);
+
+        var left = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, 400, null, null, 300);
+        Assert.Equal(180, left.Window.X);
+        Assert.Equal(400, left.Window.X + left.Small.CenterX);
     }
 
     [Fact]
-    public void A_notch_near_a_side_grows_away_from_it_and_stays_on_screen()
+    public void A_notch_near_a_side_stays_on_screen_with_its_shoulders()
     {
-        Assert.Equal(0, Placement.Notch(300, 60, Work, 40, 10).X);
-        Assert.Equal(1620, Placement.Notch(300, 60, Work, 1900, 10).X);
+        var flare = Placement.Flare(NotchSize.Small);
+        var left = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, 40, null, null, 300);
+        Assert.Equal(0, left.Window.X);
+        Assert.Equal(flare, left.Small.X);
+        Assert.Equal(flare, left.List.X);
+
+        var right = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, 1900, null, null, 300);
+        Assert.Equal(1480, right.Window.X);
+        Assert.Equal(Placement.FrameWidth - flare, right.List.Right);
+    }
+
+    [Fact]
+    public void Bigger_notch_sizes_grow_the_small_looks_and_the_window_never_changes()
+    {
+        var small = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, null, null, null, 300);
+        var large = Placement.Lay(Dock.Notch, NotchSize.Large, Work, 1, null, null, null, 300);
+        Assert.True(large.Small.Width > small.Small.Width && large.Small.Height > small.Small.Height);
+        Assert.True(large.Note.Height > small.Note.Height);
+        Assert.Equal(small.List.Width, large.List.Width);
+        Assert.Equal(small.Window, large.Window);
+    }
+
+    [Fact]
+    public void A_floating_list_opens_from_the_face_and_stays_on_screen()
+    {
+        var free = Placement.Lay(Dock.Floating, NotchSize.Small, Work, 1, null, 500, 300, 300);
+        Assert.Equal(new Box(490, 290, 440, 560), free.Window);
+        Assert.Equal(new Area(10, 10, 72, 56), free.Small);
+        Assert.Equal(free.Small.X, free.List.X);
+
+        var corner = Placement.Lay(Dock.Floating, NotchSize.Small, Work, 1, null, 1880, 1060, 300);
+        Assert.Equal(new Box(1480, 520, 440, 560), corner.Window);
+        Assert.True(corner.Window.X + corner.Small.Right <= Work.Right);
+        Assert.True(corner.Window.Y + corner.Small.Bottom <= Work.Bottom);
+        Assert.True(corner.List.Right <= Placement.FrameWidth && corner.List.Bottom <= Placement.FrameHeight);
+    }
+
+    [Fact]
+    public void Pointing_at_the_notch_pops_it_wider_from_its_middle()
+    {
+        var small = new Area(100, 0, 84, 28);
+        var pop = Placement.Pop(small, Dock.Notch, 1);
+        Assert.Equal(small.CenterX, pop.CenterX);
+        Assert.Equal(0, pop.Y);
+        Assert.True(pop.Width > small.Width && pop.Height > small.Height);
     }
 
     [Fact]
@@ -99,10 +149,6 @@ public class PlacementTests
         Assert.False(Placement.NearTop(new Box(700, 300, 300, 60), Work, 1));
         Assert.True(Placement.NearTop(new Box(700, 80, 300, 60), Work, 1.5));
     }
-
-    [Fact]
-    public void A_floating_pet_stays_on_screen() =>
-        Assert.Equal(new Box(1620, 1020, 300, 60), Placement.Clamp(new Box(5000, 5000, 300, 60), Work));
 }
 
 public class HiveoryLinkTests

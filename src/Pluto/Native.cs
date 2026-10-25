@@ -9,17 +9,23 @@ internal static partial class Native
     private const int ExStyle = -20;
     private const long ToolWindow = 0x80; // not in Alt+Tab or the taskbar
     private const long NoActivate = 0x08000000; // clicking the pet never takes focus from what you type in
+    private const int NcRendering = 2; // DWMWA_NCRENDERING_POLICY
     private const int CornerPreference = 33; // DWMWA_WINDOW_CORNER_PREFERENCE
-    private const int Round = 2;
+    private const int DoNotRound = 1;
     private const int BorderColor = 34; // DWMWA_BORDER_COLOR
     private const int Restore = 9;
+    private const nint TopMost = -1; // HWND_TOPMOST
+    private const uint RaiseFlags = 0x0013; // SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+    private const uint ForegroundChanged = 3; // EVENT_SYSTEM_FOREGROUND
 
     private static readonly HashSet<nint> Unframed = [];
+    private static readonly List<nint> OnTop = [];
+    private static nint s_foregroundHook;
 
     /// <summary>
-    /// No focus stealing, no taskbar button, Windows 11's rounded corners and no outline, and no frame at all: a window
-    /// with a border keeps invisible resize margins, which made the visible pet smaller than its window and shifted
-    /// everything inside it. Answering WM_NCCALCSIZE with "no frame" makes the client area the whole window.
+    /// No focus stealing, no taskbar button, and no frame, corners, outline or shadow from Windows: Pluto draws its own
+    /// shape on a see-through window. A window with a border keeps invisible resize margins; answering WM_NCCALCSIZE
+    /// with "no frame" makes the client area the whole window.
     /// </summary>
     public static unsafe void MakePetWindow(nint hwnd)
     {
@@ -30,17 +36,73 @@ internal static partial class Native
 
         SetWindowLongPtrW(hwnd, ExStyle, (nint)((GetWindowLongPtrW(hwnd, ExStyle) | ToolWindow | NoActivate) & ~0x100L /* WS_EX_WINDOWEDGE */));
         SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0027); // SWP_FRAMECHANGED | NOMOVE | NOSIZE | NOZORDER
-        var round = Round;
-        DwmSetWindowAttribute(hwnd, CornerPreference, ref round, sizeof(int));
-        var none = unchecked((int)0xFFFFFFFE); // DWMWA_COLOR_NONE: no outline, the acrylic edge is enough
+        var square = DoNotRound;
+        DwmSetWindowAttribute(hwnd, CornerPreference, ref square, sizeof(int));
+        var none = unchecked((int)0xFFFFFFFE); // DWMWA_COLOR_NONE
         DwmSetWindowAttribute(hwnd, BorderColor, ref none, sizeof(int));
-        var dark = 1;
-        DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
+
+        // See-through: with "blur behind" on (over an empty region, so nothing is blurred) DWM composes the window with
+        // its alpha, and a black erase counts as clear (WinUIEx's TransparentTintBackdrop does the same).
+        var margins = default(Margins);
+        DwmExtendFrameIntoClientArea(hwnd, ref margins);
+        var blur = new BlurBehind { Flags = 3 /* enable | region */, Enable = 1, Region = CreateRectRgn(-2, -2, -1, -1) };
+        DwmEnableBlurBehindWindow(hwnd, ref blur);
+    }
+
+    /// <summary>
+    /// Only this part of the window (window pixels) takes the mouse; the see-through rest lets clicks reach whatever is
+    /// below. It is a rectangle around the shape, so it never clips what Pluto draws.
+    /// </summary>
+    public static void SetHitArea(nint hwnd, int x, int y, int width, int height) =>
+        _ = SetWindowRgn(hwnd, Environment.GetEnvironmentVariable("PLUTO_NOREGION") is null ? CreateRectRgn(x, y, x + width, y + height) : 0, true); // Windows owns the region from here
+
+    /// <summary>
+    /// Keeps <paramref name="hwnd"/> above everything, full-screen apps included: whenever another window comes to the
+    /// front (a game, a window that made itself topmost), it goes back on top without taking focus. Windows kept later
+    /// (Settings) go above earlier ones (the pet). A game in exclusive full screen draws past every window, so nothing can
+    /// show over it.
+    /// </summary>
+    public static unsafe void KeepOnTop(nint hwnd)
+    {
+        OnTop.Remove(hwnd);
+        OnTop.Add(hwnd);
+        if (s_foregroundHook == 0)
+        {
+            s_foregroundHook = SetWinEventHook(ForegroundChanged, ForegroundChanged, 0, &OnForeground, 0, 0, 0 /* out of context */);
+        }
+
+        Raise();
+    }
+
+    /// <summary>Stops keeping <paramref name="hwnd"/> on top (it closed).</summary>
+    public static void LetGo(nint hwnd) => OnTop.Remove(hwnd);
+
+    /// <summary>Puts the kept windows back on top (also called every second, for apps that push in without the foreground changing).</summary>
+    public static void Raise()
+    {
+        foreach (var hwnd in OnTop.ToArray())
+        {
+            SetWindowPos(hwnd, TopMost, 0, 0, 0, 0, RaiseFlags);
+        }
     }
 
     [UnmanagedCallersOnly]
-    private static nint NoFrame(nint hwnd, uint message, nint wParam, nint lParam, nuint id, nuint data) =>
-        message == 0x0083 /* WM_NCCALCSIZE */ && wParam != 0 ? 0 : DefSubclassProc(hwnd, message, wParam, lParam);
+    private static void OnForeground(nint hook, uint e, nint hwnd, int obj, int child, uint thread, uint time) => Raise();
+
+    [UnmanagedCallersOnly]
+    private static nint NoFrame(nint hwnd, uint message, nint wParam, nint lParam, nuint id, nuint data)
+    {
+        switch (message)
+        {
+            case 0x0083 when wParam != 0: // WM_NCCALCSIZE: no frame
+                return 0;
+            case 0x0014 when GetClientRect(hwnd, out var client): // WM_ERASEBKGND: black, which reads as clear
+                FillRect(wParam, ref client, GetStockObject(4 /* BLACK_BRUSH */));
+                return 1;
+            default:
+                return DefSubclassProc(hwnd, message, wParam, lParam);
+        }
+    }
 
     /// <summary>Lets the window take focus (to type a task) or not (the rest of the time).</summary>
     public static void SetActivatable(nint hwnd, bool can)
@@ -107,6 +169,33 @@ internal static partial class Native
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct Margins
+    {
+        public int Left;
+        public int Right;
+        public int Top;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BlurBehind
+    {
+        public int Flags;
+        public int Enable;
+        public nint Region;
+        public int TransitionOnMaximized;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct Point
     {
         public int X;
@@ -128,6 +217,31 @@ internal static partial class Native
 
     [LibraryImport("comctl32.dll")]
     private static partial nint DefSubclassProc(nint hwnd, uint message, nint wParam, nint lParam);
+
+    [LibraryImport("user32.dll")]
+    private static partial int SetWindowRgn(nint hwnd, nint region, [MarshalAs(UnmanagedType.Bool)] bool redraw);
+
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmExtendFrameIntoClientArea(nint hwnd, ref Margins margins);
+
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmEnableBlurBehindWindow(nint hwnd, ref BlurBehind blur);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetClientRect(nint hwnd, out Rect rect);
+
+    [LibraryImport("user32.dll")]
+    private static partial int FillRect(nint hdc, ref Rect rect, nint brush);
+
+    [LibraryImport("gdi32.dll")]
+    private static partial nint GetStockObject(int index);
+
+    [LibraryImport("gdi32.dll")]
+    private static partial nint CreateRectRgn(int left, int top, int right, int bottom);
+
+    [LibraryImport("user32.dll")]
+    private static unsafe partial nint SetWinEventHook(uint min, uint max, nint module, delegate* unmanaged<nint, uint, nint, int, int, uint, uint, void> proc, uint process, uint thread, uint flags);
 
     [LibraryImport("dwmapi.dll")]
     private static partial int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);

@@ -6,7 +6,16 @@ namespace Pluto.Todos;
 /// <summary>A task as the list shows it.</summary>
 public sealed partial class TodoItemViewModel(TodoItem item, TodoViewModel owner) : ObservableObject
 {
+    /// <summary>The task as stored; a changed task gets a new view model.</summary>
+    internal TodoItem Item => item;
+
+    internal CompletedStyle Style { get; } = owner.CheckedStyle;
+
     public string Id { get; } = item.Id;
+
+    /// <summary>Being renamed in place.</summary>
+    [ObservableProperty]
+    public partial bool IsEditing { get; set; }
 
     public string Text { get; } = item.Text;
 
@@ -101,6 +110,21 @@ public sealed partial class TodoViewModel : ObservableObject
     /// <summary>"Next new day at 3:00 AM".</summary>
     public string NextDay => $"A new day starts at {_store.NextReset():h:mm tt}";
 
+    /// <summary>"Saved at 4:12 PM, on this PC."</summary>
+    public string SaveNote => _store.LastSaved is { } at
+        ? $"Every change is saved right away, on this PC. Last saved {at.ToLocalTime():MMM d, h:mm tt}."
+        : "Every change is saved right away, on this PC.";
+
+    /// <summary>The file the list lives in (Settings can show it).</summary>
+    public string? File => _store.File;
+
+    /// <summary>What History keeps, for its page.</summary>
+    public string KeepNote => _store.State.KeepDays switch
+    {
+        365 => "Keeps the last year. Each new day, the oldest day is let go.",
+        var d => $"Keeps the last {d} days. Each new day, the oldest day is let go.",
+    };
+
     /// <summary>Settings: index into <see cref="TodoStore.ResetTimes"/>.</summary>
     public int ResetTimeIndex
     {
@@ -168,13 +192,34 @@ public sealed partial class TodoViewModel : ObservableObject
     /// <summary>Called every so often: starts the new day when its time has come.</summary>
     public void Tick() => _store.RollOverIfDue();
 
+    /// <summary>Brings the lists up to date, moving and replacing only what changed so rows never flash.</summary>
     private void Sync()
     {
         var state = _store.State;
-        Items.Clear();
-        foreach (var t in state.Todos)
+        var wanted = state.Todos
+            .Select(t => Items.FirstOrDefault(i => i.Item == t && i.Style == state.CheckedStyle) ?? new TodoItemViewModel(t, this))
+            .ToList();
+        for (var i = 0; i < wanted.Count; i++)
         {
-            Items.Add(new TodoItemViewModel(t, this));
+            var at = Items.IndexOf(wanted[i]);
+            if (at == i)
+            {
+                continue;
+            }
+
+            if (at > i)
+            {
+                Items.Move(at, i);
+            }
+            else
+            {
+                Items.Insert(i, wanted[i]);
+            }
+        }
+
+        while (Items.Count > wanted.Count)
+        {
+            Items.RemoveAt(Items.Count - 1);
         }
 
         History.Clear();
@@ -185,7 +230,7 @@ public sealed partial class TodoViewModel : ObservableObject
 
         Done = state.Todos.Count(t => t.Completed);
         Total = state.Todos.Count;
-        foreach (var name in new[] { nameof(Title), nameof(Count), nameof(Percent), nameof(ShowBar), nameof(ShowCount), nameof(IsEmpty), nameof(HasHistory), nameof(IsHistoryEmpty), nameof(NextDay), nameof(ResetTimeIndex), nameof(KeepIndex), nameof(OrderIndex), nameof(StyleIndex), nameof(ProgressIndex) })
+        foreach (var name in new[] { nameof(Title), nameof(Count), nameof(Percent), nameof(ShowBar), nameof(ShowCount), nameof(IsEmpty), nameof(HasHistory), nameof(IsHistoryEmpty), nameof(NextDay), nameof(SaveNote), nameof(KeepNote), nameof(ResetTimeIndex), nameof(KeepIndex), nameof(OrderIndex), nameof(StyleIndex), nameof(ProgressIndex) })
         {
             OnPropertyChanged(name);
         }

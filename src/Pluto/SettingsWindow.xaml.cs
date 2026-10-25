@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Reflection;
+using Microsoft.Windows.Storage.Pickers;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -17,7 +19,6 @@ public sealed partial class SettingsWindow : Window
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(Bar);
-        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.SetIcon(Ui.LogoPath);
         ApplyTheme(live: false); // before anything is drawn
         RootGrid.Loaded += (_, _) => Center();
@@ -29,31 +30,20 @@ public sealed partial class SettingsWindow : Window
 
     public string Version { get; } = "Version " + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.0");
 
-    /// <summary>
-    /// Opens in front. Pluto never takes focus, so Windows won't let it hand focus to a new window outright: the
-    /// window rises above everything for a moment, then asks for focus, and stays where it is once you click it.
-    /// </summary>
+    /// <summary>Opens in front (restored if it was minimized) and asks for focus. It stays on top, like the pet.</summary>
     public void Present()
     {
-        var presenter = AppWindow.Presenter as OverlappedPresenter;
-        if (presenter is not null)
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.IsAlwaysOnTop = true;
+            if (presenter.State == OverlappedPresenterState.Minimized)
+            {
+                presenter.Restore();
+            }
         }
 
         Activate();
         Native.Focus(WinRT.Interop.WindowNative.GetWindowHandle(this));
-        var timer = DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromMilliseconds(400);
-        timer.IsRepeating = false;
-        timer.Tick += (_, _) =>
-        {
-            if (presenter is not null)
-            {
-                presenter.IsAlwaysOnTop = false;
-            }
-        };
-        timer.Start();
     }
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
@@ -119,4 +109,57 @@ public sealed partial class SettingsWindow : Window
     }
 
     private void OnQuit(object sender, RoutedEventArgs e) => Application.Current.Exit();
+
+    /// <summary>Opens File Explorer at the to-do file, so you can see it is there.</summary>
+    private void OnShowTodoFile(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Todo.File is { } file && System.IO.File.Exists(file))
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{file}\"") { UseShellExecute = true });
+        }
+    }
+
+    private void OnPlaySound(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).Tag is SoundKind kind)
+        {
+            Chime.Play(kind, ViewModel.Sounds[(int)kind].File, (int)ViewModel.Volume);
+        }
+    }
+
+    /// <summary>Pluto's sound, none, or a file you pick (copied into Pluto's folder, then played once to hear it).</summary>
+    private async void OnSoundChosen(object sender, SelectionChangedEventArgs e)
+    {
+        var box = (ComboBox)sender;
+        if (box.Tag is not SoundKind kind || ViewModel.Sounds[(int)kind] is not { } slot || box.SelectedIndex == slot.Choice || box.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        if (box.SelectedIndex < 2)
+        {
+            slot.Choose(box.SelectedIndex);
+            return;
+        }
+
+        var picker = new FileOpenPicker(AppWindow.Id) { SuggestedStartLocation = PickerLocationId.MusicLibrary, ViewMode = PickerViewMode.List };
+        foreach (var type in SoundSlot.Types)
+        {
+            picker.FileTypeFilter.Add(type);
+        }
+
+        var picked = await picker.PickSingleFileAsync();
+        if (picked is null)
+        {
+            box.SelectedIndex = slot.Choice; // cancelled: back to what it was
+            return;
+        }
+
+        ViewModel.Notice = slot.UseFile(picked.Path);
+        box.SelectedIndex = slot.Choice;
+        if (ViewModel.Notice is null)
+        {
+            Chime.Play(kind, slot.File, (int)ViewModel.Volume);
+        }
+    }
 }

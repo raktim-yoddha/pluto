@@ -66,6 +66,7 @@ public sealed partial class PetViewModel : ObservableObject
         _lastBusy = _now();
         Todo = todo ?? new TodoViewModel(new TodoStore(TodoStore.DefaultFile, _now));
         Agents = [.. AgentCatalog.All.Select(a => new AgentToggle(a, this))];
+        Sounds = [.. Enum.GetValues<SoundKind>().Select(k => new SoundSlot(k, pet))];
         _pet.Changed += OnChanged;
         _happyUntil = _now().AddSeconds(2); // hello
     }
@@ -122,6 +123,9 @@ public sealed partial class PetViewModel : ObservableObject
     public partial string? Notice { get; set; }
 
     public ObservableCollection<AgentToggle> Agents { get; }
+
+    /// <summary>Settings › Sound: one per moment.</summary>
+    public IReadOnlyList<SoundSlot> Sounds { get; }
 
     public PetSettings Settings => _pet.Settings;
 
@@ -183,6 +187,55 @@ public sealed partial class PetViewModel : ObservableObject
 
     public PlutoTheme Theme => _pet.Settings.Theme;
 
+    /// <summary>Settings › Eyes: 0 = dots, 1 = ovals.</summary>
+    public int EyesChoice
+    {
+        get => (int)_pet.Settings.Eyes;
+        set
+        {
+            if (value != (int)_pet.Settings.Eyes && Enum.IsDefined((EyeStyle)value))
+            {
+                _pet.Update(s => s with { Eyes = (EyeStyle)value });
+                OnPropertyChanged(nameof(EyesChoice));
+                OnPropertyChanged(nameof(Eyes));
+            }
+        }
+    }
+
+    public EyeStyle Eyes => _pet.Settings.Eyes;
+
+    /// <summary>Settings › Size: 0 = small, 1 = medium, 2 = large.</summary>
+    public int SizeChoice
+    {
+        get => (int)_pet.Settings.Size;
+        set
+        {
+            if (value != (int)_pet.Settings.Size && Enum.IsDefined((NotchSize)value))
+            {
+                _pet.Update(s => s with { Size = (NotchSize)value });
+                OnPropertyChanged(nameof(SizeChoice));
+                OnPropertyChanged(nameof(Size));
+            }
+        }
+    }
+
+    public NotchSize Size => _pet.Settings.Size;
+
+    /// <summary>0…100, for every sound.</summary>
+    public double Volume
+    {
+        get => _pet.Settings.Volume;
+        set
+        {
+            var volume = (int)Math.Clamp(Math.Round(value), 0, 100);
+            if (volume != _pet.Settings.Volume)
+            {
+                _pet.Update(s => s with { Volume = volume });
+                OnPropertyChanged();
+            }
+        }
+    }
+
     /// <summary>The Hiveory option is on: the list shows its tab and its agents.</summary>
     public bool ShowHiveory
     {
@@ -202,7 +255,8 @@ public sealed partial class PetViewModel : ObservableObject
         }
     }
 
-    public bool Sounds
+    /// <summary>Every sound on or off.</summary>
+    public bool SoundsOn
     {
         get => _pet.Settings.Sounds;
         set

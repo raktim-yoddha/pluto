@@ -4,13 +4,16 @@ using System.Text.Json.Serialization;
 
 namespace Pluto;
 
+/// <summary>Windows: the system's own look, light or dark. Black and White: monochrome, dot-matrix type.</summary>
+public enum PlutoTheme { Windows, Black, White }
+
+/// <summary>The face's eyes: a little grid of dots, or two soft ovals.</summary>
+public enum EyeStyle { Dots, Oval }
+
 /// <summary>
 /// The pet's few settings, in <c>%LOCALAPPDATA%\Pluto\settings.json</c>. Setters, not init: the JSON source
 /// generator sets every init property, so a key missing from the file would lose its default.
 /// </summary>
-/// <summary>Windows: the system's own look, acrylic, light or dark. Black and White: monochrome, dot-matrix type.</summary>
-public enum PlutoTheme { Windows, Black, White }
-
 public sealed record PetSettings
 {
     public Dock Dock { get; set; } = Dock.Notch;
@@ -18,7 +21,7 @@ public sealed record PetSettings
     /// <summary>Where along the top edge the notch is centred (physical pixels); null for the middle of the screen.</summary>
     public int? NotchX { get; set; }
 
-    /// <summary>Where a floating pet was left (physical pixels); null until it first floats.</summary>
+    /// <summary>Where a floating pet's face was left: its top-left corner (physical pixels); null until it first floats.</summary>
     public int? FloatX { get; set; }
 
     public int? FloatY { get; set; }
@@ -29,6 +32,22 @@ public sealed record PetSettings
     public bool Hiveory { get; set; }
 
     public PlutoTheme Theme { get; set; } = PlutoTheme.Windows;
+
+    public NotchSize Size { get; set; } = NotchSize.Small;
+
+    public EyeStyle Eyes { get; set; } = EyeStyle.Dots;
+
+    /// <summary>0…100.</summary>
+    public int Volume { get; set; } = 70;
+
+    /// <summary>Each moment's sound: null for Pluto's own, empty for none, or a file the user chose (copied into <see cref="SoundFolder"/>).</summary>
+    public string? StartSound { get; set; }
+
+    public string? DoneSound { get; set; }
+
+    public string? WaitSound { get; set; }
+
+    public static string SoundFolder => Path.Combine(Folder, "Sounds");
 
     public static string Folder { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Pluto");
 

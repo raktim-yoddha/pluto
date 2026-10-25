@@ -113,6 +113,16 @@
                 </Setter>
             </Style>
 
+            <!-- A small, quiet icon button (a to-do's rename and delete). -->
+            <Style x:Key="PlutoIconButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+
             <Style x:Key="SettingsSectionStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
                 <Setter Property="Margin" Value="1,28,0,8" />
                 <Setter Property="FontFamily" Value="{ThemeResource PlutoDisplayFont}" />

@@ -17,76 +17,86 @@
         PointerExited="OnExited"
         RightTapped="OnRightTapped">
 
-        <StackPanel x:Name="Stage" VerticalAlignment="Top">
-            <Grid x:Name="Head" Height="56">
-                <!-- In the notch: just the eyes. -->
-                <local:BotFace
-                    x:Name="TuckedFace"
-                    EyesOnly="True"
-                    Width="44"
-                    Height="20"
-                    Margin="0,3,0,3"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Top"
-                    Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Tucked'), Mode=OneWay}">
-                    <local:BotFace.OpacityTransition>
-                        <ScalarTransition Duration="0:0:0.167" />
-                    </local:BotFace.OpacityTransition>
-                </local:BotFace>
+        <!-- Pluto's body: drawn on the compositor (NotchSurface), behind everything. -->
+        <Grid x:Name="ShapeHost" IsHitTestVisible="False" />
 
-                <!-- Floating: the face alone, centred both ways. -->
-                <local:BotFace
-                    x:Name="SoloFace"
-                    Width="48"
-                    Height="38"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Face'), Mode=OneWay}">
-                    <local:BotFace.OpacityTransition>
-                        <ScalarTransition Duration="0:0:0.167" />
-                    </local:BotFace.OpacityTransition>
-                </local:BotFace>
+        <!-- What sits on the body, clipped to its shape. Each look has its own spot; the body moves between them. -->
+        <Canvas x:Name="Stage">
+            <!-- In the notch: just the eyes. -->
+            <local:BotFace
+                x:Name="TuckedFace"
+                EyesOnly="True"
+                Width="44"
+                Height="20"
+                Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Tucked'), Mode=OneWay}">
+                <local:BotFace.OpacityTransition>
+                    <ScalarTransition Duration="0:0:0.167" />
+                </local:BotFace.OpacityTransition>
+                <local:BotFace.ScaleTransition>
+                    <Vector3Transition Duration="0:0:0.25" />
+                </local:BotFace.ScaleTransition>
+            </local:BotFace>
 
-                <!-- Something happened: one line about it, always this size, for a moment. -->
+            <!-- Floating: the face alone. -->
+            <local:BotFace
+                x:Name="SoloFace"
+                Width="48"
+                Height="38"
+                Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Face'), Mode=OneWay}">
+                <local:BotFace.OpacityTransition>
+                    <ScalarTransition Duration="0:0:0.167" />
+                </local:BotFace.OpacityTransition>
+                <local:BotFace.ScaleTransition>
+                    <Vector3Transition Duration="0:0:0.25" />
+                </local:BotFace.ScaleTransition>
+            </local:BotFace>
+
+            <!-- Something happened: one line about it, always this size, for a moment. -->
+            <Grid
+                x:Name="NoteLayer"
+                Width="320"
+                Height="56"
+                Padding="12,0,16,0"
+                ColumnSpacing="12"
+                Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Note'), Mode=OneWay}"
+                AutomationProperties.LiveSetting="Polite"
+                AutomationProperties.Name="{x:Bind ViewModel.NoteTitle, Mode=OneWay}">
+                <Grid.OpacityTransition>
+                    <ScalarTransition Duration="0:0:0.12" />
+                </Grid.OpacityTransition>
+                <Grid.TranslationTransition>
+                    <Vector3Transition Duration="0:0:0.22" />
+                </Grid.TranslationTransition>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <local:BotFace x:Name="NoteFace" Width="48" Height="38" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock
+                        x:Name="NoteTitle"
+                        Text="{x:Bind ViewModel.NoteTitle, Mode=OneWay}"
+                        FontFamily="{ThemeResource PlutoDisplayFont}"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        MaxLines="1"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        x:Name="NoteText"
+                        Text="{x:Bind ViewModel.NoteText, Mode=OneWay}"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        MaxLines="1"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Image x:Name="NoteIcon" Grid.Column="2" Width="20" Height="20" VerticalAlignment="Center" Source="{x:Bind local:Ui.Icon(ViewModel.NoteIcon), Mode=OneWay}" />
+            </Grid>
+
+            <!-- The open list: its heading and its sections. -->
+            <StackPanel x:Name="ListLayer" Width="380">
                 <Grid
-                    x:Name="NoteLayer"
-                    Padding="12,0,16,0"
-                    ColumnSpacing="12"
-                    Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Note'), Mode=OneWay}"
-                    AutomationProperties.LiveSetting="Polite"
-                    AutomationProperties.Name="{x:Bind ViewModel.NoteTitle, Mode=OneWay}">
-                    <Grid.OpacityTransition>
-                        <ScalarTransition Duration="0:0:0.12" />
-                    </Grid.OpacityTransition>
-                    <Grid.TranslationTransition>
-                        <Vector3Transition Duration="0:0:0.22" />
-                    </Grid.TranslationTransition>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <local:BotFace x:Name="NoteFace" Width="48" Height="38" VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock
-                            Text="{x:Bind ViewModel.NoteTitle, Mode=OneWay}"
-                            FontFamily="{ThemeResource PlutoDisplayFont}"
-                            FontSize="14"
-                            FontWeight="SemiBold"
-                            MaxLines="1"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            Text="{x:Bind ViewModel.NoteText, Mode=OneWay}"
-                            Style="{StaticResource CaptionTextBlockStyle}"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            MaxLines="1"
-                            TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Image Grid.Column="2" Width="20" Height="20" VerticalAlignment="Center" Source="{x:Bind local:Ui.Icon(ViewModel.NoteIcon), Mode=OneWay}" />
-                </Grid>
-
-                <!-- The list's heading: the face, who needs you or works, and Settings. -->
-                <Grid
+                    Height="56"
                     Padding="12,0,10,0"
                     ColumnSpacing="12"
                     Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'List'), Mode=OneWay}"
@@ -130,10 +140,8 @@
                         <FontIcon Glyph="&#xE713;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </Button>
                 </Grid>
-            </Grid>
 
-            <!-- The list. -->
-            <StackPanel
+                <StackPanel
                 x:Name="Panel"
                 Width="380"
                 Padding="4,0,4,8"
@@ -267,20 +275,51 @@
                         Margin="-12,0,-12,0"
                         ItemsSource="{x:Bind ViewModel.Todo.Items}"
                         SelectionMode="None"
-                        CanReorderItems="True"
-                        CanDragItems="True"
-                        AllowDrop="True"
-                        DragItemsCompleted="OnTodoDragged"
                         AutomationProperties.Name="Today's tasks">
+                        <!-- Rows move by hand (drag the grip), so no built-in item animations get in the way. -->
+                        <ListView.ItemContainerTransitions>
+                            <TransitionCollection />
+                        </ListView.ItemContainerTransitions>
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="todos:TodoItemViewModel">
-                                <Grid MinHeight="40" ColumnSpacing="4" Background="Transparent" RightTapped="OnTodoRightTapped" Tag="{x:Bind Id}">
+                                <Grid
+                                    MinHeight="40"
+                                    ColumnSpacing="6"
+                                    Background="Transparent"
+                                    Tag="{x:Bind Id}"
+                                    PointerEntered="OnTodoEnter"
+                                    PointerExited="OnTodoExit"
+                                    DoubleTapped="OnTodoDoubleTapped"
+                                    KeyDown="OnTodoKeyDown"
+                                    AutomationProperties.Name="{x:Bind Text}">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="18"
+                                        Height="32"
+                                        Margin="-8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        Tag="{x:Bind Id}"
+                                        PointerPressed="OnGripPressed"
+                                        PointerMoved="OnGripMoved"
+                                        PointerReleased="OnGripReleased"
+                                        PointerCaptureLost="OnGripLost"
+                                        ToolTipService.ToolTip="Drag to move"
+                                        AutomationProperties.Name="Move (Alt+Up or Alt+Down)">
+                                        <FontIcon Glyph="&#xE76F;" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Opacity="0">
+                                            <FontIcon.OpacityTransition>
+                                                <ScalarTransition Duration="0:0:0.15" />
+                                            </FontIcon.OpacityTransition>
+                                        </FontIcon>
+                                    </Border>
                                     <CheckBox
+                                        Grid.Column="1"
                                         MinWidth="0"
                                         Padding="0"
                                         VerticalAlignment="Center"
@@ -289,21 +328,42 @@
                                         Click="OnTodoChecked"
                                         AutomationProperties.Name="{x:Bind Text}" />
                                     <TextBlock
-                                        Grid.Column="1"
+                                        Grid.Column="2"
                                         VerticalAlignment="Center"
                                         Text="{x:Bind Text}"
                                         Opacity="{x:Bind TextOpacity}"
                                         TextDecorations="{x:Bind local:Ui.Strike(Struck)}"
                                         TextTrimming="CharacterEllipsis"
                                         MaxLines="2"
-                                        TextWrapping="Wrap" />
-                                    <TextBlock
+                                        TextWrapping="Wrap"
+                                        Visibility="{x:Bind local:Ui.Hidden(IsEditing), Mode=OneWay}" />
+                                    <TextBox
                                         Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        Text="{x:Bind Text}"
+                                        Tag="{x:Bind Id}"
+                                        KeyDown="OnEditKeyDown"
+                                        LostFocus="OnEditLostFocus"
+                                        Visibility="{x:Bind local:Ui.Shown(IsEditing), Mode=OneWay}"
+                                        AutomationProperties.Name="Rename task" />
+                                    <TextBlock
+                                        Grid.Column="3"
                                         VerticalAlignment="Center"
                                         Text="{x:Bind CompletedAt}"
                                         FontFamily="{ThemeResource PlutoDisplayFont}"
                                         FontSize="11"
                                         Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                    <StackPanel Grid.Column="4" VerticalAlignment="Center" Orientation="Horizontal" Opacity="0">
+                                        <StackPanel.OpacityTransition>
+                                            <ScalarTransition Duration="0:0:0.15" />
+                                        </StackPanel.OpacityTransition>
+                                        <Button Style="{StaticResource PlutoIconButtonStyle}" Tag="{x:Bind Id}" Click="OnEditClick" ToolTipService.ToolTip="Rename (F2)" AutomationProperties.Name="Rename">
+                                            <FontIcon Glyph="&#xE70F;" FontSize="12" />
+                                        </Button>
+                                        <Button Style="{StaticResource PlutoIconButtonStyle}" Tag="{x:Bind Id}" Click="OnDeleteClick" ToolTipService.ToolTip="Delete (Del)" AutomationProperties.Name="Delete">
+                                            <FontIcon Glyph="&#xE74D;" FontSize="12" />
+                                        </Button>
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -315,7 +375,8 @@
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Visibility="{x:Bind local:Ui.Shown(ViewModel.Todo.IsEmpty), Mode=OneWay}" />
                 </StackPanel>
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
+        </Canvas>
     </Grid>
 </Window>

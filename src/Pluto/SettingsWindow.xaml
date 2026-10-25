@@ -63,7 +63,7 @@
                             CloseButtonClick="OnNoticeClosed" />
 
                         <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Appearance" />
-                        <local:SettingCard Glyph="&#xE790;" Header="Theme" Description="Windows follows your light or dark mode, on acrylic. Black and White are monochrome, set in dots.">
+                        <local:SettingCard Glyph="&#xE790;" Header="Theme" Description="Windows follows your light or dark mode. Black and White are monochrome, set in dots.">
                             <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.ThemeChoice, Mode=TwoWay}" AutomationProperties.Name="Theme">
                                 <x:String>Windows</x:String>
                                 <x:String>Black</x:String>
@@ -74,6 +74,19 @@
                             <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.DockChoice, Mode=TwoWay}" AutomationProperties.Name="Where Pluto lives">
                                 <x:String>Top edge</x:String>
                                 <x:String>Floating</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE740;" Header="Size" Description="How big Pluto is when it's small: the notch, the floating face and its notes">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.SizeChoice, Mode=TwoWay}" AutomationProperties.Name="Size">
+                                <x:String>Small</x:String>
+                                <x:String>Medium</x:String>
+                                <x:String>Large</x:String>
+                            </ComboBox>
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE7B3;" Header="Eyes" Description="A little grid of dots, or two soft ovals">
+                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.EyesChoice, Mode=TwoWay}" AutomationProperties.Name="Eyes">
+                                <x:String>Dots</x:String>
+                                <x:String>Ovals</x:String>
                             </ComboBox>
                         </local:SettingCard>
 
@@ -104,10 +117,38 @@
                             <ToggleSwitch MinWidth="0" IsOn="{x:Bind ViewModel.ShowHiveory, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="Show Hiveory's agents" />
                         </local:SettingCard>
 
-                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Sound and startup" />
-                        <local:SettingCard Glyph="&#xE767;" Header="Sounds" Description="A tick when an agent starts, a chime when it's done, a ping when it needs you">
-                            <ToggleSwitch MinWidth="0" IsOn="{x:Bind ViewModel.Sounds, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="Sounds" />
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Sound" />
+                        <local:SettingCard Glyph="&#xE767;" Header="Sounds" Description="Pluto plays a sound when an agent starts, is done or needs you">
+                            <ToggleSwitch MinWidth="0" IsOn="{x:Bind ViewModel.SoundsOn, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="Sounds" />
                         </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE995;" Header="Volume">
+                            <Slider Width="200" Minimum="0" Maximum="100" StepFrequency="5" Value="{x:Bind ViewModel.Volume, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.SoundsOn, Mode=OneWay}" AutomationProperties.Name="Volume" />
+                        </local:SettingCard>
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Sounds}" IsEnabled="{x:Bind ViewModel.SoundsOn, Mode=OneWay}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:SoundSlot">
+                                    <local:SettingCard Glyph="&#xE8D6;" Header="{x:Bind Header}" Description="{x:Bind Detail, Mode=OneWay}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Width="36" Height="32" Padding="0" Tag="{x:Bind Kind}" Click="OnPlaySound" ToolTipService.ToolTip="Play" AutomationProperties.Name="Play">
+                                                <FontIcon Glyph="&#xE768;" FontSize="14" />
+                                            </Button>
+                                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind Choice, Mode=OneWay}" Tag="{x:Bind Kind}" SelectionChanged="OnSoundChosen" AutomationProperties.Name="{x:Bind Header}">
+                                                <x:String>Pluto</x:String>
+                                                <x:String>None</x:String>
+                                                <x:String>Your own sound…</x:String>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </local:SettingCard>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Startup" />
                         <local:SettingCard Glyph="&#xE7E8;" Header="Start with Windows" Description="Open Pluto when you sign in">
                             <ToggleSwitch MinWidth="0" IsOn="{x:Bind ViewModel.StartWithWindows, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="Start with Windows" />
                         </local:SettingCard>
@@ -136,12 +177,17 @@
                                 <x:String>6:00 AM</x:String>
                             </ComboBox>
                         </local:SettingCard>
-                        <local:SettingCard Glyph="&#xE81C;" Header="Keep history for" Description="Past days older than this are let go">
+                        <local:SettingCard Glyph="&#xE81C;" Header="Keep history for" Description="{x:Bind ViewModel.Todo.KeepNote, Mode=OneWay}">
                             <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.Todo.KeepIndex, Mode=TwoWay}" AutomationProperties.Name="Keep history for">
                                 <x:String>1 week</x:String>
                                 <x:String>2 weeks</x:String>
                                 <x:String>1 month</x:String>
+                                <x:String>3 months</x:String>
+                                <x:String>1 year</x:String>
                             </ComboBox>
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE74E;" Header="Saved on this PC" Description="{x:Bind ViewModel.Todo.SaveNote, Mode=OneWay}">
+                            <Button Content="Show file" Click="OnShowTodoFile" />
                         </local:SettingCard>
 
                         <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Checked tasks" />
@@ -194,6 +240,11 @@
                                 </Button.Flyout>
                             </Button>
                         </Grid>
+                        <TextBlock
+                            Margin="0,-8,0,8"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{x:Bind ViewModel.Todo.KeepNote, Mode=OneWay}" />
                         <TextBlock
                             Style="{StaticResource BodyTextBlockStyle}"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"

@@ -15,6 +15,8 @@ public static class Ui
 
     public static Visibility Shown(bool shown) => shown ? Visibility.Visible : Visibility.Collapsed;
 
+    public static Visibility Hidden(bool hidden) => Shown(!hidden);
+
     public static Visibility Shown(string? text) => Shown(!string.IsNullOrEmpty(text));
 
     public static Visibility ShownEither(string? first, string? second) => Shown(!string.IsNullOrEmpty(first) || !string.IsNullOrEmpty(second));
