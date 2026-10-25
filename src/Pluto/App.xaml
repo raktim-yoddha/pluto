@@ -57,16 +57,21 @@
             <!-- The font headings use; the theme swaps in the dot-matrix one for Black and White. -->
             <FontFamily x:Key="PlutoDisplayFont">Segoe UI Variable Display</FontFamily>
 
-            <!-- The list's tiny section labels (All · Hiveory · To Do): native radio buttons drawn as small text. -->
+            <!-- The list's section labels (All · Hiveory · To Do): native radio buttons drawn as small text; the chosen one
+                 sits on a pill (TabPill) that glides between them. -->
             <Style x:Key="PlutoTabStyle" TargetType="RadioButton">
                 <Setter Property="FontSize" Value="12" />
-                <Setter Property="Padding" Value="6,2,6,6" />
+                <Setter Property="Padding" Value="11,0,11,0" />
+                <Setter Property="Height" Value="26" />
                 <Setter Property="MinWidth" Value="0" />
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="FocusVisualMargin" Value="-1" />
+                <Setter Property="CornerRadius" Value="13" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="RadioButton">
-                            <Grid Padding="{TemplateBinding Padding}" Background="Transparent">
+                            <Grid Padding="{TemplateBinding Padding}" Background="Transparent" CornerRadius="{TemplateBinding CornerRadius}">
                                 <VisualStateManager.VisualStateGroups>
                                     <VisualStateGroup x:Name="CommonStates">
                                         <VisualState x:Name="Normal" />
@@ -75,14 +80,17 @@
                                                 <Setter Target="Label.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
                                             </VisualState.Setters>
                                         </VisualState>
-                                        <VisualState x:Name="Pressed" />
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="Label.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
                                         <VisualState x:Name="Disabled" />
                                     </VisualStateGroup>
                                     <VisualStateGroup x:Name="CheckStates">
                                         <VisualState x:Name="Checked">
                                             <VisualState.Setters>
                                                 <Setter Target="Label.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
-                                                <Setter Target="Line.Opacity" Value="1" />
                                             </VisualState.Setters>
                                         </VisualState>
                                         <VisualState x:Name="Unchecked" />
@@ -91,22 +99,12 @@
                                 </VisualStateManager.VisualStateGroups>
                                 <ContentPresenter
                                     x:Name="Label"
+                                    VerticalAlignment="Center"
                                     Content="{TemplateBinding Content}"
                                     FontFamily="{ThemeResource PlutoDisplayFont}"
                                     FontSize="{TemplateBinding FontSize}"
                                     FontWeight="SemiBold"
                                     Foreground="{TemplateBinding Foreground}" />
-                                <Rectangle
-                                    x:Name="Line"
-                                    Width="12"
-                                    Height="2"
-                                    Margin="0,0,0,-5"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Bottom"
-                                    Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                                    Opacity="0"
-                                    RadiusX="1"
-                                    RadiusY="1" />
                             </Grid>
                         </ControlTemplate>
                     </Setter.Value>

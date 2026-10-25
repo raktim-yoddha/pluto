@@ -19,7 +19,8 @@ dot when an agent needs you. Settings also picks the **size** (Small, Medium, La
 | Nothing is happening | Tucked into its notch at the top of the screen, just its eyes (floating: just its face); sleepy after 10 quiet minutes |
 | Point at it | It pops, just a little |
 | An agent starts, finishes, needs you or fails | A short note hanging from the top edge for three seconds ("Codex is done · Done in 4:12", "Maple needs you"), with a soft sound |
-| Click | The notch glides open into the list: **All** agents, **Hiveory** (only when Hiveory is on) and **To Do**; click a session to bring its terminal, editor or app forward |
+| Click | The notch glides open into the list: **All** agents, **Hiveory** (only when Hiveory is on) and **To Do** (click a section; a soft pill marks the chosen one); click a session to bring its terminal, editor or app forward |
+| Click anywhere else, or Escape | The list glides closed |
 | Drag | Drop it near the top edge to make a notch right there, anywhere along it; anywhere else it floats |
 | ⚙ or right-click | Settings |
 

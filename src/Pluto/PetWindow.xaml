@@ -15,6 +15,7 @@
         PointerCaptureLost="OnCaptureLost"
         PointerEntered="OnEntered"
         PointerExited="OnExited"
+        KeyDown="OnRootKeyDown"
         RightTapped="OnRightTapped">
 
         <!-- Pluto's body: drawn on the compositor (NotchSurface), behind everything. -->
@@ -30,7 +31,7 @@
                 Height="20"
                 Opacity="{x:Bind local:Ui.Show(ViewModel.Look, 'Tucked'), Mode=OneWay}">
                 <local:BotFace.OpacityTransition>
-                    <ScalarTransition Duration="0:0:0.167" />
+                    <ScalarTransition Duration="0:0:0.1" />
                 </local:BotFace.OpacityTransition>
                 <local:BotFace.ScaleTransition>
                     <Vector3Transition Duration="0:0:0.25" />
@@ -95,6 +96,9 @@
 
             <!-- The open list: its heading and its sections. -->
             <StackPanel x:Name="ListLayer" Width="380">
+                <StackPanel.TranslationTransition>
+                    <Vector3Transition Duration="0:0:0.34" />
+                </StackPanel.TranslationTransition>
                 <Grid
                     Height="56"
                     Padding="12,0,10,0"
@@ -152,11 +156,15 @@
                 </StackPanel.OpacityTransition>
 
                 <!-- Tiny section labels. Pointing at one opens it. -->
-                <StackPanel Margin="10,0,0,6" Orientation="Horizontal" Spacing="4" AutomationProperties.Name="Sections">
-                    <RadioButton x:Name="AllTab" Content="All" GroupName="Sections" IsChecked="True" Style="{StaticResource PlutoTabStyle}" Checked="OnTabChecked" PointerEntered="OnTabHover" />
-                    <RadioButton x:Name="HiveoryTab" Content="Hiveory" GroupName="Sections" Style="{StaticResource PlutoTabStyle}" Checked="OnTabChecked" PointerEntered="OnTabHover" Visibility="{x:Bind local:Ui.Shown(ViewModel.ShowHiveory), Mode=OneWay}" />
-                    <RadioButton x:Name="TodoTab" Content="To Do" GroupName="Sections" Style="{StaticResource PlutoTabStyle}" Checked="OnTabChecked" PointerEntered="OnTabHover" />
-                </StackPanel>
+                <!-- The sections: click one. A soft pill behind the chosen one glides between them. -->
+                <Grid Margin="10,2,0,8" HorizontalAlignment="Left">
+                    <Grid x:Name="TabPillHost" IsHitTestVisible="False" />
+                    <StackPanel x:Name="Tabs" Orientation="Horizontal" Spacing="2" AutomationProperties.Name="Sections">
+                        <RadioButton x:Name="AllTab" Content="All" GroupName="Sections" IsChecked="True" Style="{StaticResource PlutoTabStyle}" Checked="OnTabChecked" />
+                        <RadioButton x:Name="HiveoryTab" Content="Hiveory" GroupName="Sections" Style="{StaticResource PlutoTabStyle}" Checked="OnTabChecked" Visibility="{x:Bind local:Ui.Shown(ViewModel.ShowHiveory), Mode=OneWay}" />
+                        <RadioButton x:Name="TodoTab" Content="To Do" GroupName="Sections" Style="{StaticResource PlutoTabStyle}" Checked="OnTabChecked" />
+                    </StackPanel>
+                </Grid>
 
                 <!-- Agents. -->
                 <StackPanel Visibility="{x:Bind local:Ui.Shown(ViewModel.ShowAgents), Mode=OneWay}">

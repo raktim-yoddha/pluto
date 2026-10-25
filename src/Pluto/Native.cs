@@ -21,6 +21,8 @@ internal static partial class Native
     private static readonly HashSet<nint> Unframed = [];
     private static readonly List<nint> OnTop = [];
     private static nint s_foregroundHook;
+    private static nint s_mouseHook;
+    private static Action<int, int>? s_pressed;
 
     /// <summary>
     /// No focus stealing, no taskbar button, and no frame, corners, outline or shadow from Windows: Pluto draws its own
@@ -36,25 +38,75 @@ internal static partial class Native
 
         SetWindowLongPtrW(hwnd, ExStyle, (nint)((GetWindowLongPtrW(hwnd, ExStyle) | ToolWindow | NoActivate) & ~0x100L /* WS_EX_WINDOWEDGE */));
         SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0027); // SWP_FRAMECHANGED | NOMOVE | NOSIZE | NOZORDER
+        var disabled = 1; // DWMNCRP_DISABLED: Windows draws no frame, caption colour or shadow into the clear parts
+        DwmSetWindowAttribute(hwnd, NcRendering, ref disabled, sizeof(int));
         var square = DoNotRound;
         DwmSetWindowAttribute(hwnd, CornerPreference, ref square, sizeof(int));
         var none = unchecked((int)0xFFFFFFFE); // DWMWA_COLOR_NONE
         DwmSetWindowAttribute(hwnd, BorderColor, ref none, sizeof(int));
 
-        // See-through: with "blur behind" on (over an empty region, so nothing is blurred) DWM composes the window with
-        // its alpha, and a black erase counts as clear (WinUIEx's TransparentTintBackdrop does the same).
+        SeeThrough(hwnd);
+    }
+
+    /// <summary>
+    /// See-through: with "blur behind" on over an empty region (so nothing is blurred or tinted) DWM composes the window
+    /// with its alpha, and a black erase counts as clear (WinUIEx's TransparentTintBackdrop does the same).
+    /// </summary>
+    private static void SeeThrough(nint hwnd)
+    {
         var margins = default(Margins);
         DwmExtendFrameIntoClientArea(hwnd, ref margins);
-        var blur = new BlurBehind { Flags = 3 /* enable | region */, Enable = 1, Region = CreateRectRgn(-2, -2, -1, -1) };
+        var nothing = CreateRectRgn(-2, -2, -1, -1);
+        var blur = new BlurBehind { Flags = 3 /* enable | region */, Enable = 1, Region = nothing };
         DwmEnableBlurBehindWindow(hwnd, ref blur);
+        DeleteObject(nothing);
     }
 
     /// <summary>
     /// Only this part of the window (window pixels) takes the mouse; the see-through rest lets clicks reach whatever is
     /// below. It is a rectangle around the shape, so it never clips what Pluto draws.
     /// </summary>
-    public static void SetHitArea(nint hwnd, int x, int y, int width, int height) =>
-        _ = SetWindowRgn(hwnd, Environment.GetEnvironmentVariable("PLUTO_NOREGION") is null ? CreateRectRgn(x, y, x + width, y + height) : 0, true); // Windows owns the region from here
+    public static void SetHitArea(nint hwnd, int x, int y, int width, int height)
+    {
+        _ = SetWindowRgn(hwnd, CreateRectRgn(x, y, x + width, y + height), true); // Windows owns the region from here
+    }
+
+    /// <summary>
+    /// Calls <paramref name="pressed"/> with the screen point (physical pixels) of every mouse button press anywhere,
+    /// until <see cref="StopWatchingClicks"/>: how the open list knows you clicked somewhere else. Only the point is
+    /// passed on, and only while the list is open.
+    /// </summary>
+    public static unsafe void WatchClicks(Action<int, int> pressed)
+    {
+        s_pressed = pressed;
+        if (s_mouseHook == 0)
+        {
+            s_mouseHook = SetWindowsHookExW(14 /* WH_MOUSE_LL */, &OnMouse, GetModuleHandleW(0), 0);
+        }
+    }
+
+    public static void StopWatchingClicks()
+    {
+        if (s_mouseHook != 0)
+        {
+            UnhookWindowsHookEx(s_mouseHook);
+            s_mouseHook = 0;
+        }
+
+        s_pressed = null;
+    }
+
+    [UnmanagedCallersOnly]
+    private static unsafe nint OnMouse(int code, nint message, nint data)
+    {
+        if (code >= 0 && message is 0x0201 or 0x0204 or 0x0207) // left, right or middle button down
+        {
+            var point = *(Point*)data;
+            s_pressed?.Invoke(point.X, point.Y);
+        }
+
+        return CallNextHookEx(0, code, message, data);
+    }
 
     /// <summary>
     /// Keeps <paramref name="hwnd"/> above everything, full-screen apps included: whenever another window comes to the
@@ -96,6 +148,10 @@ internal static partial class Native
         {
             case 0x0083 when wParam != 0: // WM_NCCALCSIZE: no frame
                 return 0;
+            case 0x0085: // WM_NCPAINT: there is no frame to paint
+                return 0;
+            case 0x0086: // WM_NCACTIVATE: nor a caption to repaint as active or inactive
+                return 1;
             case 0x0014 when GetClientRect(hwnd, out var client): // WM_ERASEBKGND: black, which reads as clear
                 FillRect(wParam, ref client, GetStockObject(4 /* BLACK_BRUSH */));
                 return 1;
@@ -236,6 +292,23 @@ internal static partial class Native
 
     [LibraryImport("gdi32.dll")]
     private static partial nint GetStockObject(int index);
+
+    [LibraryImport("user32.dll")]
+    private static unsafe partial nint SetWindowsHookExW(int kind, delegate* unmanaged<int, nint, nint, nint> proc, nint module, uint thread);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool UnhookWindowsHookEx(nint hook);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint CallNextHookEx(nint hook, int code, nint message, nint data);
+
+    [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial nint GetModuleHandleW(nint name);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool DeleteObject(nint handle);
 
     [LibraryImport("gdi32.dll")]
     private static partial nint CreateRectRgn(int left, int top, int right, int bottom);

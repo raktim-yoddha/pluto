@@ -27,9 +27,9 @@ public sealed partial class PetWindow : Window
     private readonly nint _hwnd;
     private readonly DispatcherQueueTimer _tick;
     private readonly DispatcherQueueTimer _gaze;
-    private readonly DispatcherQueueTimer _leave;
     private readonly DispatcherQueueTimer _settle;
     private NotchSurface? _surface;
+    private TabPill? _pill;
     private SettingsWindow? _settings;
     private Layout? _layout;
     private Box _window;
@@ -70,8 +70,6 @@ public sealed partial class PetWindow : Window
         ApplyTheme(live: false); // before anything is drawn
 
         var queue = DispatcherQueue;
-        _leave = Timer(queue, 1100, Leave);
-        _leave.IsRepeating = false;
         _settle = Timer(queue, 140, () => Arrange(jump: true)); // after a note fades out, go small
         _settle.IsRepeating = false;
         _tick = Timer(queue, 1000, () =>
@@ -79,10 +77,6 @@ public sealed partial class PetWindow : Window
             ViewModel.Refresh();
             ViewModel.Todo.Tick(); // a new day, when its time comes
             Native.Raise(); // back on top of anything that pushed in without taking the foreground
-            if (ViewModel.Look == Look.List && !_leave.IsRunning && !CursorInside())
-            {
-                _leave.Start(); // no PointerExited comes when the cursor jumps away (a click elsewhere, a second screen)
-            }
         });
         _gaze = Timer(queue, 90, Gaze);
 
@@ -94,6 +88,8 @@ public sealed partial class PetWindow : Window
         {
             Native.MakePetWindow(_hwnd); // again once shown: WinUI sets the frame up late, after the constructor
             _surface = new NotchSurface(ShapeHost, Stage);
+            _pill = new TabPill(TabPillHost);
+            Tabs.SizeChanged += (_, _) => MovePill(animate: false);
             Paint();
             ViewModel.Refresh();
             Face.Mood = SoloFace.Mood = ViewModel.Mood;
@@ -106,6 +102,7 @@ public sealed partial class PetWindow : Window
         {
             _tick.Stop();
             _gaze.Stop();
+            Native.StopWatchingClicks();
         };
     }
 
@@ -128,6 +125,7 @@ public sealed partial class PetWindow : Window
         BotFace.Paint(ink, alert);
         var (fill, edge) = Themes.SurfaceColors(ViewModel.Theme, Root.ActualTheme);
         _surface?.Paint(fill, ViewModel.Dock == Dock.Floating ? edge : null);
+        _pill?.Paint(Themes.PillColor(ViewModel.Theme, Root.ActualTheme));
     }
 
     // ── Shape and place ────────────────────────────────────────────────────────────────────
@@ -137,6 +135,8 @@ public sealed partial class PetWindow : Window
         switch (e.PropertyName)
         {
             case nameof(PetViewModel.Look):
+                WatchClicks();
+                MovePill(animate: false);
                 Arrange();
                 break;
             case nameof(PetViewModel.VisibleRows) or nameof(PetViewModel.IsEmpty) or nameof(PetViewModel.Section) or nameof(PetViewModel.ShowHiveory):
@@ -261,6 +261,20 @@ public sealed partial class PetWindow : Window
         else if (moved)
         {
             motion = Motion.Jump;
+        }
+
+        if (look == Look.Note && _shown != Look.Note)
+        {
+            // In it drops: a few pixels and a fade, like a Windows flyout.
+            NoteLayer.Translation = new Vector3(0, -6, 0);
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => NoteLayer.Translation = Vector3.Zero);
+        }
+
+        if (motion == Motion.Open && _shown != Look.List)
+        {
+            // The list settles in from just above as the body opens around it.
+            ListLayer.Translation = new Vector3(0, -10, 0);
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => ListLayer.Translation = Vector3.Zero);
         }
 
         _shown = look;
@@ -430,7 +444,6 @@ public sealed partial class PetWindow : Window
 
     private void OnEntered(object sender, PointerRoutedEventArgs e)
     {
-        _leave.Stop();
         if (!_hover && !_pressed)
         {
             _hover = true;
@@ -440,7 +453,6 @@ public sealed partial class PetWindow : Window
 
     private void OnExited(object sender, PointerRoutedEventArgs e)
     {
-        _leave.Start();
         if (_hover && !_dragging)
         {
             _hover = false;
@@ -448,27 +460,41 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    /// <summary>The pointer stayed away from the open list: fold it (not while you type into it or move a task).</summary>
-    private void Leave()
+    /// <summary>While the list is open, a click anywhere else folds it back to rest.</summary>
+    private void WatchClicks()
     {
-        if (_menuOpen || _pressed || _slots is not null || CursorInside() || FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox)
+        if (ViewModel.Look == Look.List)
         {
-            return;
+            Native.WatchClicks((x, y) => DispatcherQueue.TryEnqueue(() => ClickedAt(x, y)));
         }
-
-        ViewModel.PointerLeft();
+        else
+        {
+            Native.StopWatchingClicks();
+        }
     }
 
-    private bool CursorInside()
+    private void ClickedAt(int x, int y)
     {
-        if (_layout is null)
+        if (ViewModel.Look != Look.List || _layout is null || _menuOpen || _slots is not null)
         {
-            return false;
+            return; // a menu of Pluto's own is open, or a task is being moved
         }
 
-        var (x, y) = Native.Cursor();
-        var r = Placement.OnScreen(_layout.For(ViewModel.Look), _window, Root.XamlRoot.RasterizationScale);
-        return x >= r.X && x < r.Right && y >= r.Y && y < r.Bottom;
+        var r = Placement.OnScreen(_layout.List, _window, Root.XamlRoot.RasterizationScale);
+        if (x < r.X || x >= r.Right || y < r.Y || y >= r.Bottom)
+        {
+            ViewModel.PointerLeft();
+        }
+    }
+
+    /// <summary>Escape folds the open list too.</summary>
+    private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Escape && ViewModel.Look == Look.List)
+        {
+            ViewModel.PointerLeft();
+            e.Handled = true;
+        }
     }
 
     /// <summary>The eyes follow the cursor around the screen.</summary>
@@ -492,11 +518,27 @@ public sealed partial class PetWindow : Window
 
     // ── Sections ───────────────────────────────────────────────────────────────────────────
 
+    private RadioButton SelectedTab => ViewModel.Section switch { Section.Hiveory => HiveoryTab, Section.Todo => TodoTab, _ => AllTab };
+
     private void SyncTabs()
     {
         _syncingTabs = true;
-        (ViewModel.Section switch { Section.Hiveory => HiveoryTab, Section.Todo => TodoTab, _ => AllTab }).IsChecked = true;
+        SelectedTab.IsChecked = true;
         _syncingTabs = false;
+        MovePill(animate: true);
+    }
+
+    /// <summary>The soft pill behind the chosen section glides to it.</summary>
+    private void MovePill(bool animate)
+    {
+        var tab = SelectedTab;
+        if (_pill is null || tab.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var at = tab.TransformToVisual(Tabs).TransformPoint(default);
+        _pill.MoveTo(new Area(at.X, at.Y, tab.ActualWidth, tab.ActualHeight), animate);
     }
 
     private void OnTabChecked(object sender, RoutedEventArgs e)
@@ -507,9 +549,6 @@ public sealed partial class PetWindow : Window
             ViewModel.Section = tab == HiveoryTab ? Section.Hiveory : tab == TodoTab ? Section.Todo : Section.All;
         }
     }
-
-    /// <summary>Pointing at a section label is enough to open it.</summary>
-    private void OnTabHover(object sender, PointerRoutedEventArgs e) => ((RadioButton)sender).IsChecked = true;
 
     // ── To Do ──────────────────────────────────────────────────────────────────────────────
 
@@ -842,11 +881,7 @@ public sealed partial class PetWindow : Window
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(quit);
         menu.Opened += (_, _) => _menuOpen = true;
-        menu.Closed += (_, _) =>
-        {
-            _menuOpen = false;
-            _leave.Start();
-        };
+        menu.Closed += (_, _) => _menuOpen = false;
         menu.ShowAt(Root, e.GetPosition(Root));
     }
 

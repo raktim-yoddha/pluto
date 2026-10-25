@@ -75,6 +75,15 @@ public static class Themes
         _ => (Color.FromArgb(255, 0x1B, 0x1B, 0x1C), Color.FromArgb(255, 0x33, 0x33, 0x35)),
     };
 
+    /// <summary>The soft pill behind the chosen section: a whisper of ink on the body.</summary>
+    public static Color PillColor(PlutoTheme theme, ElementTheme actual) => theme switch
+    {
+        PlutoTheme.Black => Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF),
+        PlutoTheme.White => Color.FromArgb(0x14, 0, 0, 0),
+        _ when actual == ElementTheme.Light => Color.FromArgb(0x0F, 0, 0, 0),
+        _ => Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF),
+    };
+
     /// <summary>The colour of the face's dots and of its alert dot.</summary>
     public static (Color Ink, Color Alert) FaceColors(PlutoTheme theme, ElementTheme actual) => theme switch
     {
