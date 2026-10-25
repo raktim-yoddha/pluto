@@ -78,6 +78,7 @@ public sealed partial class PetWindow : Window
             ViewModel.Refresh();
             ViewModel.Todo.Tick(); // a new day, when its time comes
             Native.Raise(); // back on top of anything that pushed in without taking the foreground
+            FoldWhenLeftAlone();
         });
         _gaze = Timer(queue, 90, Gaze);
 
@@ -376,7 +377,7 @@ public sealed partial class PetWindow : Window
         }
 
         var (cx, cy) = Native.Cursor();
-        if (ViewModel.Look == Look.List || (!_dragging && Math.Sqrt(Math.Pow(cx - _pressCursor.X, 2) + Math.Pow(cy - _pressCursor.Y, 2)) < 5 * Root.XamlRoot.RasterizationScale))
+        if (!_dragging && Math.Sqrt(Math.Pow(cx - _pressCursor.X, 2) + Math.Pow(cy - _pressCursor.Y, 2)) < 5 * Root.XamlRoot.RasterizationScale)
         {
             return;
         }
@@ -419,7 +420,10 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    /// <summary>Near the top edge: a notch right there. Anywhere else: it floats where it is. Either way it glides into place.</summary>
+    /// <summary>
+    /// Near the top edge: a notch right there. Anywhere else: it floats where it is. Either way it glides into place, and
+    /// an open list stays open (dragged by its heading).
+    /// </summary>
     private void Dropped()
     {
         _dragging = false;
@@ -431,10 +435,11 @@ public sealed partial class PetWindow : Window
         var scale = Root.XamlRoot.RasterizationScale;
         var p = AppWindow.Position;
         var here = new Box(p.X, p.Y, _window.Width, _window.Height);
-        var face = Placement.OnScreen(_layout.Small, here, scale);
+        var open = ViewModel.Look == Look.List;
+        var face = Placement.OnScreen(open ? _layout.List : _layout.Small, here, scale);
         var display = DisplayArea.GetFromPoint(new PointInt32(face.CenterX, face.Y), DisplayAreaFallback.Primary);
         var work = new Box(display.WorkArea.X, display.WorkArea.Y, display.WorkArea.Width, display.WorkArea.Height);
-        _glideFrom = Placement.OnScreen(Placement.Pop(_layout.Small, ViewModel.Dock, _layout.Zoom), here, scale);
+        _glideFrom = open ? face : Placement.OnScreen(Placement.Pop(_layout.Small, ViewModel.Dock, _layout.Zoom), here, scale);
         _window = here;
         if (Placement.NearTop(face, work, scale))
         {
@@ -479,16 +484,50 @@ public sealed partial class PetWindow : Window
 
     private void ClickedAt(int x, int y)
     {
-        if (ViewModel.Look != Look.List || _layout is null || _menuOpen || _slots is not null)
-        {
-            return; // a menu of Pluto's own is open, or a task is being moved
-        }
-
-        var r = Placement.OnScreen(_layout.List, _window, Root.XamlRoot.RasterizationScale);
-        if (x < r.X || x >= r.Right || y < r.Y || y >= r.Bottom)
+        if (ViewModel.Look == Look.List && !Busy && !OverList(x, y))
         {
             ViewModel.PointerLeft();
         }
+    }
+
+    /// <summary>How long the open list waits, with the pointer away from it, before it folds on its own.</summary>
+    private static readonly TimeSpan FoldAfter = TimeSpan.FromSeconds(5);
+
+    private DateTimeOffset? _awaySince;
+
+    /// <summary>
+    /// Left alone (the pointer elsewhere for a few seconds), the open list folds back to rest. Not while you type into
+    /// it, move a task or use one of its menus.
+    /// </summary>
+    private void FoldWhenLeftAlone()
+    {
+        var (x, y) = Native.Cursor();
+        if (ViewModel.Look != Look.List || Busy || OverList(x, y) || FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox)
+        {
+            _awaySince = null;
+            return;
+        }
+
+        _awaySince ??= DateTimeOffset.Now;
+        if (DateTimeOffset.Now - _awaySince >= FoldAfter)
+        {
+            _awaySince = null;
+            ViewModel.PointerLeft();
+        }
+    }
+
+    /// <summary>A menu of Pluto's own is open, a task is being moved, or Pluto is being dragged.</summary>
+    private bool Busy => _menuOpen || _slots is not null || _pressed || _dragging;
+
+    private bool OverList(int x, int y)
+    {
+        if (_layout is null)
+        {
+            return false;
+        }
+
+        var r = Placement.OnScreen(_layout.List, _window, Root.XamlRoot.RasterizationScale);
+        return x >= r.X && x < r.Right && y >= r.Y && y < r.Bottom;
     }
 
     /// <summary>Escape folds the open list too.</summary>
