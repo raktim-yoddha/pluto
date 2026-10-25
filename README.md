@@ -107,15 +107,28 @@ Everything stays on your PC. The pet keeps sessions in memory only: agent, proje
 the current step ("Editing App.cs"). Settings and To Do live in `%LOCALAPPDATA%\Pluto`. Prompts, file contents and command output are never stored. No network
 access except Hiveory's link on 127.0.0.1.
 
+## Install
+
+Download `Pluto-<version>-win-x64.zip` from [Releases](https://github.com/raktim-yoddha/pluto/releases/latest),
+unzip it anywhere and run `Pluto.exe`. It is self-contained: nothing else to install.
+
 ## Build
 
 Requires Windows 10/11 and the .NET 10 SDK.
 
+Run the dev build (closes a running Pluto, restores, builds the latest code and starts it), from any folder, in cmd
+or PowerShell:
+
 ```powershell
-dotnet test tests/Pluto.Tests  # 42 tests
-dotnet build src/Pluto          # then run src/Pluto/bin/Debug/net10.0-windows10.0.26100.0/win-x64/Pluto.exe
-pwsh scripts/publish.ps1             # out/Pluto-win-x64.zip, self-contained (NativeAOT relay needs the VS C++ workload)
+.\dev.cmd                  # from the repository folder; or its full path from anywhere
 ```
+
+```powershell
+dotnet test tests/Pluto.Tests   # the tests
+pwsh scripts/publish.ps1         # out/Pluto-win-x64.zip, self-contained (the NativeAOT relay needs the VS C++ workload)
+```
+
+Releases follow [Semantic Versioning](https://semver.org); see [CHANGELOG.md](CHANGELOG.md).
 
 Set `HIVEORY_PET_DEBUG=1` to make the relay explain on stderr why an event was not delivered.
 

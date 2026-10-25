@@ -6,6 +6,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Version>0.1.0</Version>
     <Authors>Hiveory</Authors>
-    <Product>Hiveory Pet</Product>
+    <Product>Pluto</Product>
   </PropertyGroup>
 </Project>
