@@ -29,6 +29,9 @@ internal sealed class NotchSurface
     private double _flare;
     private double _scale = 1;
     private int _generation;
+    private Color _rimTop;
+    private Color _rimBottom;
+    private bool _rimOn = true;
 
     /// <param name="host">An empty element covering the window: the shape is drawn as its child visual.</param>
     /// <param name="content">What sits on the shape; it is clipped to it.</param>
@@ -65,22 +68,51 @@ internal sealed class NotchSurface
 
     /// <summary>
     /// The colours. A notch is one solid colour, like the real thing. The floating capsule is lit from above: its fill
-    /// fades from <paramref name="fillTop"/> to <paramref name="fill"/>, inside a thick rim that runs from
-    /// <paramref name="rimTop"/> to <paramref name="rimBottom"/>.
+    /// fades from <paramref name="fillTop"/> to <paramref name="fill"/>, inside a soft rim that runs from
+    /// <paramref name="rimTop"/> to <paramref name="rimBottom"/> (shown with <see cref="ShowRim"/>).
     /// </summary>
     public void Paint(Color fill, Color fillTop, Color rimTop, Color rimBottom, bool capsule)
     {
         _color = fill;
         _fill.ColorStops[0].Color = capsule ? fillTop : fill;
         _fill.ColorStops[1].Color = fill;
-        _rim.ColorStops[0].Color = rimTop;
-        _rim.ColorStops[1].Color = rimBottom;
+        (_rimTop, _rimBottom) = (rimTop, rimBottom);
         _body.StrokeThickness = capsule ? (float)Rim : 0;
+        foreach (var stop in _rim.ColorStops)
+        {
+            stop.StopAnimation("Color");
+        }
+
+        _rim.ColorStops[0].Color = _rimOn ? rimTop : Clear(rimTop);
+        _rim.ColorStops[1].Color = _rimOn ? rimBottom : Clear(rimBottom);
         Shape(_flare, _scale);
     }
 
     /// <summary>How thick the capsule's rim is (DIPs); half of it lies outside the shape.</summary>
-    public const double Rim = 3.5;
+    public const double Rim = 2;
+
+    /// <summary>The rim fades in on the small capsule and out as it opens into the list.</summary>
+    public void ShowRim(bool on)
+    {
+        if (on == _rimOn)
+        {
+            return;
+        }
+
+        _rimOn = on;
+        Fade(_rim.ColorStops[0], on ? _rimTop : Clear(_rimTop));
+        Fade(_rim.ColorStops[1], on ? _rimBottom : Clear(_rimBottom));
+    }
+
+    private void Fade(CompositionColorGradientStop stop, Color to)
+    {
+        var fade = _c.CreateColorKeyFrameAnimation();
+        fade.InsertKeyFrame(1, to, _c.CreateCubicBezierEasingFunction(new Vector2(0.33f, 0), new Vector2(0.2f, 1)));
+        fade.Duration = TimeSpan.FromMilliseconds(_rimOn ? 380 : 200); // out quickly as it opens, back in slowly at rest
+        stop.StartAnimation("Color", fade);
+    }
+
+    private static Color Clear(Color c) => Color.FromArgb(0, c.R, c.G, c.B);
 
     /// <summary>The shoulders' size (DIPs; 0 when floating) at a display scale, for crisp edges.</summary>
     public void Shape(double flare, double scale)

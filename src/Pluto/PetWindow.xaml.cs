@@ -239,6 +239,7 @@ public sealed partial class PetWindow : Window
 
         var flare = notch ? Placement.Flare(ViewModel.Size) : 0;
         _surface.Shape(flare, scale);
+        _surface.ShowRim(look != Look.List);
         var target = layout.For(look);
         if (_hover && look is Look.Tucked or Look.Face)
         {

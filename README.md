@@ -42,8 +42,8 @@ Settings › History shows the past days.
 a gentle knock when it needs you), none, or your own file (WAV, MP3, M4A, WMA, FLAC or AAC, copied into Pluto's
 folder). One volume for all.
 
-**Floating capsule:** lit from above, with a thick rim that runs light to dark (graphite in the Windows theme, ink in
-Black and White). In the notch Pluto stays one solid colour, like a hardware notch.
+**Floating capsule:** lit from above, with a soft rim that runs light to dark; it fades away as the capsule opens into
+the list. In the notch Pluto stays one solid colour, like a hardware notch.
 
 **Settings** (a Windows Settings–style window that stays on top with Pluto): theme, where Pluto lives (top edge or
 floating), size, eyes, the agents to watch, Hiveory, sound, start with Windows, To Do and History.
