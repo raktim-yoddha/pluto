@@ -272,11 +272,67 @@
                         Maximum="100"
                         Visibility="{x:Bind local:Ui.Shown(ViewModel.Todo.ShowBar), Mode=OneWay}"
                         AutomationProperties.Name="Done so far" />
-                    <TextBox
-                        x:Name="AddBox"
-                        PlaceholderText="Add a task"
-                        KeyDown="OnAddKeyDown"
-                        AutomationProperties.Name="Add a task" />
+                    <!-- Adding a task: a soft rounded field with a plus; Enter (or the return key on the right) adds it. -->
+                    <Grid Height="40">
+                    <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" />
+                    <Border
+                        x:Name="AddEdge"
+                        BorderBrush="{ThemeResource ControlStrokeColorSecondaryBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Opacity="0">
+                        <Border.OpacityTransition>
+                            <ScalarTransition Duration="0:0:0.15" />
+                        </Border.OpacityTransition>
+                    </Border>
+                    <Grid Padding="12,0,4,0" ColumnSpacing="10">
+                            <Grid.Resources>
+                                <!-- The field draws nothing of its own: the row is the field. -->
+                                <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
+                                <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
+                                <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
+                                <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon x:Name="AddIcon" VerticalAlignment="Center" Glyph="&#xE710;" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Opacity="0.45">
+                                <FontIcon.OpacityTransition>
+                                    <ScalarTransition Duration="0:0:0.15" />
+                                </FontIcon.OpacityTransition>
+                            </FontIcon>
+                            <TextBox
+                                x:Name="AddBox"
+                                Grid.Column="1"
+                                MinHeight="0"
+                                Padding="0,0,0,1"
+                                VerticalAlignment="Center"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                PlaceholderText="Add a task"
+                                KeyDown="OnAddKeyDown"
+                                TextChanged="OnAddTextChanged"
+                                GotFocus="OnAddFocus"
+                                LostFocus="OnAddFocus"
+                                AutomationProperties.Name="Add a task" />
+                            <Button
+                                x:Name="AddButton"
+                                Grid.Column="2"
+                                Style="{StaticResource PlutoIconButtonStyle}"
+                                Opacity="0"
+                                IsHitTestVisible="False"
+                                Click="OnAddClick"
+                                ToolTipService.ToolTip="Add (Enter)"
+                                AutomationProperties.Name="Add">
+                                <Button.OpacityTransition>
+                                    <ScalarTransition Duration="0:0:0.15" />
+                                </Button.OpacityTransition>
+                                <FontIcon Glyph="&#xE751;" FontSize="12" />
+                            </Button>
+                    </Grid>
+                    </Grid>
                     <ListView
                         x:Name="TodoList"
                         MaxHeight="320"
@@ -318,7 +374,6 @@
                                         PointerMoved="OnGripMoved"
                                         PointerReleased="OnGripReleased"
                                         PointerCaptureLost="OnGripLost"
-                                        ToolTipService.ToolTip="Drag to move"
                                         AutomationProperties.Name="Move (Alt+Up or Alt+Down)">
                                         <FontIcon Glyph="&#xE76F;" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Opacity="0">
                                             <FontIcon.OpacityTransition>

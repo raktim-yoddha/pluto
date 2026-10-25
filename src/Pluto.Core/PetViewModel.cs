@@ -13,7 +13,7 @@ public enum Look { Tucked, Face, Note, List }
 public enum Section { All, Hiveory, Todo }
 
 /// <summary>How the face feels.</summary>
-public enum Mood { Idle, Working, NeedsYou, Happy, Sleepy }
+public enum Mood { Idle, Working, NeedsYou, Happy }
 
 /// <summary>An agent in Settings › Agents, with a switch that adds or removes its hooks.</summary>
 public sealed partial class AgentToggle(AgentSpec spec, PetViewModel owner) : ObservableObject
@@ -50,20 +50,17 @@ public sealed partial class AgentToggle(AgentSpec spec, PetViewModel owner) : Ob
 public sealed partial class PetViewModel : ObservableObject
 {
     public static readonly TimeSpan NoteFor = TimeSpan.FromSeconds(3);
-    public static readonly TimeSpan SleepAfter = TimeSpan.FromMinutes(10);
 
     private readonly Pet _pet;
     private readonly Func<DateTimeOffset> _now;
     private DateTimeOffset _noteUntil;
     private DateTimeOffset _happyUntil;
-    private DateTimeOffset _lastBusy;
     private bool _listOpen;
 
     public PetViewModel(Pet pet, Func<DateTimeOffset>? now = null, TodoViewModel? todo = null)
     {
         _pet = pet;
         _now = now ?? (() => DateTimeOffset.Now);
-        _lastBusy = _now();
         Todo = todo ?? new TodoViewModel(new TodoStore(TodoStore.DefaultFile, _now));
         Agents = [.. AgentCatalog.All.Select(a => new AgentToggle(a, this))];
         Sounds = [.. Enum.GetValues<SoundKind>().Select(k => new SoundSlot(k, pet))];
@@ -282,11 +279,6 @@ public sealed partial class PetViewModel : ObservableObject
         var now = _now();
         var rows = _pet.Rows();
         var headline = Board.Headline(rows);
-        if (headline.State != PetState.Idle)
-        {
-            _lastBusy = now;
-        }
-
         Look = _listOpen ? Look.List
             : now < _noteUntil ? Look.Note
             : Dock == Dock.Floating ? Look.Face
@@ -296,7 +288,6 @@ public sealed partial class PetViewModel : ObservableObject
             PetState.NeedsYou => Mood.NeedsYou,
             PetState.Working => Mood.Working,
             _ when now < _happyUntil => Mood.Happy,
-            _ when now - _lastBusy > SleepAfter => Mood.Sleepy,
             _ => Mood.Idle,
         };
         Title = headline.Title;
@@ -387,7 +378,7 @@ public sealed partial class PetViewModel : ObservableObject
             {
                 Moment.NeedsYou => ($"{who} needs you", Mood.NeedsYou),
                 Moment.Finished => ($"{who} is done", Mood.Happy),
-                Moment.Failed => ($"{who} stopped", Mood.Sleepy),
+                Moment.Failed => ($"{who} stopped", Mood.NeedsYou),
                 _ => ($"{who} is working", Mood.Working),
             };
             NoteText = moment switch

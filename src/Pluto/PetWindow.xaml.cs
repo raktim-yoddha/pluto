@@ -8,6 +8,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
@@ -123,8 +124,8 @@ public sealed partial class PetWindow : Window
     {
         var (ink, alert) = Themes.FaceColors(ViewModel.Theme, Root.ActualTheme);
         BotFace.Paint(ink, alert);
-        var (fill, edge) = Themes.SurfaceColors(ViewModel.Theme, Root.ActualTheme);
-        _surface?.Paint(fill, ViewModel.Dock == Dock.Floating ? edge : null);
+        var body = Themes.SurfaceColors(ViewModel.Theme, Root.ActualTheme);
+        _surface?.Paint(body.Fill, body.FillTop, body.RimTop, body.RimBottom, capsule: ViewModel.Dock == Dock.Floating);
         _pill?.Paint(Themes.PillColor(ViewModel.Theme, Root.ActualTheme));
     }
 
@@ -301,9 +302,11 @@ public sealed partial class PetWindow : Window
     /// <summary>Only the body (and its shoulders) takes the mouse; around it, clicks go to the windows below.</summary>
     private void SetHit(Area area, double flare, double scale)
     {
-        var x = (int)Math.Floor((area.X - flare) * scale) - 1;
-        var y = (int)Math.Floor(area.Y * scale) - 1;
-        Native.SetHitArea(_hwnd, Math.Max(0, x), Math.Max(0, y), (int)Math.Ceiling((area.Width + (2 * flare)) * scale) + 2, (int)Math.Ceiling(area.Height * scale) + 2);
+        // Wide enough for the shoulders and the capsule's rim, which reach past the shape (the area also clips drawing).
+        var pad = flare + NotchSurface.Rim;
+        var x = (int)Math.Floor((area.X - pad) * scale) - 1;
+        var y = (int)Math.Floor((area.Y - NotchSurface.Rim) * scale) - 1;
+        Native.SetHitArea(_hwnd, Math.Max(0, x), Math.Max(0, y), (int)Math.Ceiling((area.Width + (2 * pad)) * scale) + 2, (int)Math.Ceiling((area.Height + (2 * NotchSurface.Rim)) * scale) + 2);
     }
 
     /// <summary>Puts each look's content in its spot, at the chosen size.</summary>
@@ -561,10 +564,9 @@ public sealed partial class PetWindow : Window
 
     private void OnAddKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == VirtualKey.Enter && AddBox.Text.Trim().Length > 0)
+        if (e.Key == VirtualKey.Enter)
         {
-            ViewModel.Todo.Add(AddBox.Text);
-            AddBox.Text = string.Empty;
+            AddTask();
             e.Handled = true;
         }
         else if (e.Key == VirtualKey.Escape)
@@ -572,6 +574,37 @@ public sealed partial class PetWindow : Window
             AddBox.Text = string.Empty;
             ViewModel.PointerLeft();
         }
+    }
+
+    private void OnAddClick(object sender, RoutedEventArgs e)
+    {
+        AddTask();
+        AddBox.Focus(FocusState.Programmatic);
+    }
+
+    private void AddTask()
+    {
+        if (AddBox.Text.Trim().Length > 0)
+        {
+            ViewModel.Todo.Add(AddBox.Text);
+            AddBox.Text = string.Empty;
+        }
+    }
+
+    /// <summary>The return key shows once there is something to add.</summary>
+    private void OnAddTextChanged(object sender, TextChangedEventArgs e)
+    {
+        var any = AddBox.Text.Trim().Length > 0;
+        AddButton.Opacity = any ? 1 : 0;
+        AddButton.IsHitTestVisible = any;
+    }
+
+    /// <summary>Typing into it, the row takes a hairline edge and the plus brightens.</summary>
+    private void OnAddFocus(object sender, RoutedEventArgs e)
+    {
+        var focused = AddBox.FocusState != FocusState.Unfocused;
+        AddEdge.Opacity = focused ? 1 : 0;
+        AddIcon.Opacity = focused ? 1 : 0.45;
     }
 
     private void OnTodoChecked(object sender, RoutedEventArgs e)
@@ -701,9 +734,11 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    // Moving a task: drag its grip. The task follows the pointer and the others slide aside; on release it settles
-    // into its slot and the list takes the new order.
-    private List<(UIElement Row, double Top, double Height)>? _slots;
+    // Moving a task: drag its grip. The task lifts and follows the pointer, the others glide aside on springs, and on
+    // release it settles into its slot before the list takes the new order. Every movement is an explicit compositor
+    // animation that is stopped and cleared before the order changes, so no row is ever left out of place.
+    private List<(UIElement Row, Microsoft.UI.Composition.Visual Visual, double Top, double Height)>? _slots;
+    private double[] _shift = [];
     private Grid? _dragRow;
     private int _from;
     private int _to;
@@ -712,12 +747,12 @@ public sealed partial class PetWindow : Window
     private void OnGripPressed(object sender, PointerRoutedEventArgs e)
     {
         var grip = (FrameworkElement)sender;
-        if (Item(sender) is not { } item || !e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed)
+        if (_slots is not null || Item(sender) is not { } item || !e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed)
         {
             return;
         }
 
-        var slots = new List<(UIElement Row, double Top, double Height)>();
+        var slots = new List<(UIElement Row, Microsoft.UI.Composition.Visual Visual, double Top, double Height)>();
         foreach (var t in ViewModel.Todo.Items)
         {
             if (TodoList.ContainerFromItem(t) is not UIElement row)
@@ -725,24 +760,30 @@ public sealed partial class PetWindow : Window
                 return; // not all on screen (a long list scrolled): moving by keyboard still works
             }
 
-            slots.Add((row, row.TransformToVisual(TodoList).TransformPoint(default).Y, row.ActualSize.Y));
+            ElementCompositionPreview.SetIsTranslationEnabled(row, true);
+            slots.Add((row, ElementCompositionPreview.GetElementVisual(row), row.TransformToVisual(TodoList).TransformPoint(default).Y, row.ActualSize.Y));
         }
 
         _slots = slots;
+        _shift = new double[slots.Count];
         _from = _to = ViewModel.Todo.Items.IndexOf(item);
         _dragRow = grip.Parent as Grid;
         _startY = e.GetCurrentPoint(TodoList).Position.Y;
         for (var i = 0; i < slots.Count; i++)
         {
-            var row = slots[i].Row;
-            row.TranslationTransition = i == _from ? null : new Vector3Transition { Duration = TimeSpan.FromMilliseconds(170) };
-            Canvas.SetZIndex(row, i == _from ? 1 : 0);
+            Canvas.SetZIndex(slots[i].Row, i == _from ? 1 : 0);
         }
 
-        var lifted = slots[_from].Row;
-        lifted.CenterPoint = new Vector3(lifted.ActualSize.X / 2, lifted.ActualSize.Y / 2, 0);
-        lifted.ScaleTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(120) };
-        lifted.Scale = new Vector3(1.02f, 1.02f, 1);
+        var lifted = slots[_from];
+        if (_dragRow is { } card)
+        {
+            // Lifted, the task is a solid card a shade lighter than the body, so it covers the rows it passes over.
+            card.Background = new SolidColorBrush(Themes.SurfaceColors(ViewModel.Theme, Root.ActualTheme).Lift);
+            card.CornerRadius = new CornerRadius(10);
+        }
+
+        lifted.Visual.CenterPoint = new Vector3(lifted.Row.ActualSize.X / 2, (float)(lifted.Height / 2), 0);
+        lifted.Visual.StartAnimation("Scale", Spring3(new Vector3(1.025f, 1.025f, 1), 0.7f));
         grip.CapturePointer(e.Pointer);
         e.Handled = true;
     }
@@ -754,10 +795,12 @@ public sealed partial class PetWindow : Window
             return;
         }
 
-        var (_, top, height) = slots[_from];
+        var (_, visual, top, height) = slots[_from];
         var dy = Math.Clamp(e.GetCurrentPoint(TodoList).Position.Y - _startY, -top, slots[^1].Top + slots[^1].Height - top - height);
-        slots[_from].Row.Translation = new Vector3(0, (float)dy, 0);
+        visual.StopAnimation("Translation");
+        visual.Properties.InsertVector3("Translation", new Vector3(0, (float)dy, 0));
 
+        // The slot it is over: where its middle has passed the middle of a neighbour.
         var middle = top + (height / 2) + dy;
         var to = _from;
         for (var i = 0; i < slots.Count; i++)
@@ -772,10 +815,11 @@ public sealed partial class PetWindow : Window
         _to = to;
         for (var i = 0; i < slots.Count; i++)
         {
-            if (i != _from)
+            var shift = i == _from ? 0 : i > _from && i <= to ? -height : i < _from && i >= to ? height : 0;
+            if (i != _from && shift != _shift[i])
             {
-                var shift = i > _from && i <= to ? -height : i < _from && i >= to ? height : 0;
-                slots[i].Row.Translation = new Vector3(0, (float)shift, 0);
+                _shift[i] = shift;
+                slots[i].Visual.StartAnimation("Translation", Spring3(new Vector3(0, (float)shift, 0), 0.86f));
             }
         }
 
@@ -800,33 +844,49 @@ public sealed partial class PetWindow : Window
         _slots = null;
         var (from, to) = (_from, _to);
         var id = ViewModel.Todo.Items[from].Id;
-        var lifted = slots[from].Row;
+        var lifted = slots[from].Visual;
         var offset = to > from ? slots.Skip(from + 1).Take(to - from).Sum(s => s.Height)
             : -slots.Skip(to).Take(from - to).Sum(s => s.Height);
-        lifted.TranslationTransition = new Vector3Transition { Duration = TimeSpan.FromMilliseconds(150) };
-        lifted.Translation = new Vector3(0, (float)offset, 0);
-        lifted.Scale = Vector3.One;
-        if (_dragRow is { } row)
+        var row = _dragRow;
+        if (row is not null)
         {
             ShowTools(row, false);
         }
 
-        var commit = DispatcherQueue.CreateTimer();
-        commit.Interval = TimeSpan.FromMilliseconds(160);
-        commit.IsRepeating = false;
-        commit.Tick += (_, _) =>
+        // Into its slot, then the new order: the rows already sit where it puts them, so nothing jumps.
+        var compositor = lifted.Compositor;
+        var batch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
+        lifted.StartAnimation("Translation", Spring3(new Vector3(0, (float)offset, 0), 0.9f));
+        lifted.StartAnimation("Scale", Spring3(Vector3.One, 0.9f));
+        batch.End();
+        batch.Completed += (_, _) =>
         {
-            // Settle without a jump: the rows already sit where the new order puts them.
-            foreach (var (r, _, _) in slots)
+            if (row is not null)
             {
-                r.TranslationTransition = null;
-                r.Translation = Vector3.Zero;
+                row.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                row.ClearValue(Grid.CornerRadiusProperty);
+            }
+
+            foreach (var (r, v, _, _) in slots)
+            {
+                v.StopAnimation("Translation");
+                v.StopAnimation("Scale");
+                v.Properties.InsertVector3("Translation", Vector3.Zero);
+                v.Scale = Vector3.One;
                 Canvas.SetZIndex(r, 0);
             }
 
             ViewModel.Todo.MoveTo(id, to);
         };
-        commit.Start();
+    }
+
+    private Microsoft.UI.Composition.SpringVector3NaturalMotionAnimation Spring3(Vector3 to, float damping)
+    {
+        var spring = ElementCompositionPreview.GetElementVisual(Root).Compositor.CreateSpringVector3Animation();
+        spring.FinalValue = to;
+        spring.DampingRatio = damping;
+        spring.Period = TimeSpan.FromMilliseconds(42);
+        return spring;
     }
 
     // ── Actions ────────────────────────────────────────────────────────────────────────────

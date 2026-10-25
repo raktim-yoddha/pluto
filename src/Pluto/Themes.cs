@@ -64,16 +64,19 @@ public static class Themes
     }
 
     /// <summary>
-    /// Pluto's body and, floating, its hairline edge. Solid, like a hardware notch: Windows' own dark or light surface
-    /// in the Windows theme, true black or paper white in the monochrome ones.
+    /// Pluto's body. In the notch it is <see cref="Surface.Fill"/> alone, solid like a hardware notch. Floating, the
+    /// capsule is lit from above: the fill brightens towards the top, inside a thick rim that runs light to dark. In the
+    /// Windows theme the rim is graphite; Black and White keep to pure ink.
     /// </summary>
-    public static (Color Fill, Color Edge) SurfaceColors(PlutoTheme theme, ElementTheme actual) => theme switch
+    public static Surface SurfaceColors(PlutoTheme theme, ElementTheme actual) => theme switch
     {
-        PlutoTheme.Black => (Colors.Black, Color.FromArgb(255, 0x26, 0x26, 0x26)),
-        PlutoTheme.White => (Colors.White, Color.FromArgb(255, 0xE2, 0xE2, 0xE2)),
-        _ when actual == ElementTheme.Light => (Color.FromArgb(255, 0xF9, 0xF9, 0xF9), Color.FromArgb(255, 0xDD, 0xDD, 0xDD)),
-        _ => (Color.FromArgb(255, 0x1B, 0x1B, 0x1C), Color.FromArgb(255, 0x33, 0x33, 0x35)),
+        PlutoTheme.Black => new(Rgb(0x00, 0x00, 0x00), Rgb(0x16, 0x16, 0x16), Rgb(0x8A, 0x8A, 0x8A), Rgb(0x1E, 0x1E, 0x1E)),
+        PlutoTheme.White => new(Rgb(0xFF, 0xFF, 0xFF), Rgb(0xFF, 0xFF, 0xFF), Rgb(0xE8, 0xE8, 0xE8), Rgb(0x9C, 0x9C, 0x9C)),
+        _ when actual == ElementTheme.Light => new(Rgb(0xF3, 0xF3, 0xF5), Rgb(0xFF, 0xFF, 0xFF), Rgb(0xEC, 0xEC, 0xF0), Rgb(0x9E, 0x9E, 0xA8)),
+        _ => new(Rgb(0x17, 0x17, 0x19), Rgb(0x27, 0x27, 0x2C), Rgb(0x96, 0x96, 0xA2), Rgb(0x2A, 0x2A, 0x30)),
     };
+
+    private static Color Rgb(byte r, byte g, byte b) => Color.FromArgb(255, r, g, b);
 
     /// <summary>The soft pill behind the chosen section: a whisper of ink on the body.</summary>
     public static Color PillColor(PlutoTheme theme, ElementTheme actual) => theme switch
@@ -171,4 +174,13 @@ public static class Themes
     }
 
     private static SolidColorBrush Brush(Color color, byte alpha = 0xFF) => new(Color.FromArgb(alpha, color.R, color.G, color.B));
+}
+
+/// <summary>Pluto's body colours: the fill (and its lit top, floating) and the floating capsule's rim, top to bottom.</summary>
+public readonly record struct Surface(Color Fill, Color FillTop, Color RimTop, Color RimBottom)
+{
+    /// <summary>Something raised on the body (a task being moved): a step towards the light, fully opaque.</summary>
+    public Color Lift => Color.FromArgb(255, Step(Fill.R), Step(Fill.G), Step(Fill.B));
+
+    private static byte Step(byte v) => v > 0xF0 ? (byte)(v - 0x0C) : (byte)Math.Min(255, v + 0x1E);
 }

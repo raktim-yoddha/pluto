@@ -16,7 +16,7 @@ dot when an agent needs you. Settings also picks the **size** (Small, Medium, La
 
 | You | Pluto |
 |---|---|
-| Nothing is happening | Tucked into its notch at the top of the screen, just its eyes (floating: just its face); sleepy after 10 quiet minutes |
+| Nothing is happening | Tucked into its notch at the top of the screen, just its eyes (floating: just its face) |
 | Point at it | It pops, just a little |
 | An agent starts, finishes, needs you or fails | A short note hanging from the top edge for three seconds ("Codex is done · Done in 4:12", "Maple needs you"), with a soft sound |
 | Click | The notch glides open into the list: **All** agents, **Hiveory** (only when Hiveory is on) and **To Do** (click a section; a soft pill marks the chosen one); click a session to bring its terminal, editor or app forward |
@@ -41,6 +41,9 @@ Settings › History shows the past days.
 **Sound:** each moment has its own sound: Pluto's (a soft tap when an agent starts, a two-note chime when it's done,
 a gentle knock when it needs you), none, or your own file (WAV, MP3, M4A, WMA, FLAC or AAC, copied into Pluto's
 folder). One volume for all.
+
+**Floating capsule:** lit from above, with a thick rim that runs light to dark (graphite in the Windows theme, ink in
+Black and White). In the notch Pluto stays one solid colour, like a hardware notch.
 
 **Settings** (a Windows Settings–style window that stays on top with Pluto): theme, where Pluto lives (top edge or
 floating), size, eyes, the agents to watch, Hiveory, sound, start with Windows, To Do and History.

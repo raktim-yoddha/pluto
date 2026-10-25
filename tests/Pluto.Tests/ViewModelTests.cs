@@ -55,7 +55,7 @@ public class ViewModelTests
 
         _now = _now.AddMinutes(11);
         vm.Refresh();
-        Assert.Equal(Mood.Sleepy, vm.Mood);
+        Assert.Equal(Mood.Idle, vm.Mood); // quiet for a long time: still wide awake, never droopy
         Assert.Equal(Look.Tucked, vm.Look);
     }
 

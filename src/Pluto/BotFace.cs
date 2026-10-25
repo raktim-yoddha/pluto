@@ -291,13 +291,9 @@ public sealed partial class BotFace : Grid
 
     private void ApplyMood()
     {
-        _eyes.Opacity = _mood switch { Mood.Happy => 0, Mood.Sleepy => 0.5, _ => 1 };
-        _eyes.Scale = _mood switch
-        {
-            Mood.Sleepy => new Vector3(1.05f, 0.28f, 1),
-            Mood.NeedsYou => new Vector3(1.14f, 1.14f, 1),
-            _ => Vector3.One,
-        };
+        // The eyes are always whole and bright: only happy swaps them for arches, and "needs you" widens them.
+        _eyes.Opacity = _mood == Mood.Happy ? 0 : 1;
+        _eyes.Scale = _mood == Mood.NeedsYou ? new Vector3(1.14f, 1.14f, 1) : Vector3.One;
         _happy.Opacity = _mood == Mood.Happy ? 1 : 0;
         _smile.Opacity = _mood is Mood.Idle or Mood.Happy ? 1 : 0;
         _thinking.Opacity = _mood == Mood.Working ? 1 : 0;
@@ -381,7 +377,7 @@ public sealed partial class BotFace : Grid
 
     private void Blink()
     {
-        if (_compositor is not null && _mood is not (Mood.Happy or Mood.Sleepy))
+        if (_compositor is not null && _mood != Mood.Happy)
         {
             var twice = Random.Shared.Next(5) == 0;
             var blink = _compositor.CreateVector3KeyFrameAnimation();

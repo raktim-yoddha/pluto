@@ -20,8 +20,9 @@ internal sealed class NotchSurface
 {
     private readonly Compositor _c;
     private readonly CompositionPropertySet _p;
-    private readonly CompositionColorBrush _fill;
-    private readonly CompositionColorBrush _stroke;
+    private readonly CompositionLinearGradientBrush _fill;
+    private readonly CompositionLinearGradientBrush _rim;
+    private readonly CompositionSpriteShape _body;
     private readonly CompositionRadialGradientBrush _leftShoulder;
     private readonly CompositionRadialGradientBrush _rightShoulder;
     private Color _color = Colors.Black;
@@ -41,15 +42,15 @@ internal sealed class NotchSurface
         _p.InsertScalar("Lift", 1);
         _p.InsertScalar("Flare", 0);
 
-        _fill = _c.CreateColorBrush(_color);
-        _stroke = _c.CreateColorBrush(Colors.Transparent);
+        _fill = TopToBottom();
+        _rim = TopToBottom();
         _leftShoulder = Gradient();
         _rightShoulder = Gradient();
 
         var body = _c.CreateSpriteShape(Rounded());
         body.FillBrush = _fill;
-        body.StrokeBrush = _stroke;
-        body.StrokeThickness = 1;
+        body.StrokeBrush = _rim;
+        _body = body;
 
         var visual = _c.CreateShapeVisual();
         visual.RelativeSizeAdjustment = Vector2.One;
@@ -62,14 +63,24 @@ internal sealed class NotchSurface
         ElementCompositionPreview.GetElementVisual(content).Clip = _c.CreateGeometricClip(Rounded());
     }
 
-    /// <summary>The fill, and a hairline edge (floating only: a notch has none, like the real thing).</summary>
-    public void Paint(Color fill, Color? edge)
+    /// <summary>
+    /// The colours. A notch is one solid colour, like the real thing. The floating capsule is lit from above: its fill
+    /// fades from <paramref name="fillTop"/> to <paramref name="fill"/>, inside a thick rim that runs from
+    /// <paramref name="rimTop"/> to <paramref name="rimBottom"/>.
+    /// </summary>
+    public void Paint(Color fill, Color fillTop, Color rimTop, Color rimBottom, bool capsule)
     {
         _color = fill;
-        _fill.Color = fill;
-        _stroke.Color = edge ?? Colors.Transparent;
+        _fill.ColorStops[0].Color = capsule ? fillTop : fill;
+        _fill.ColorStops[1].Color = fill;
+        _rim.ColorStops[0].Color = rimTop;
+        _rim.ColorStops[1].Color = rimBottom;
+        _body.StrokeThickness = capsule ? (float)Rim : 0;
         Shape(_flare, _scale);
     }
+
+    /// <summary>How thick the capsule's rim is (DIPs); half of it lies outside the shape.</summary>
+    public const double Rim = 3.5;
 
     /// <summary>The shoulders' size (DIPs; 0 when floating) at a display scale, for crisp edges.</summary>
     public void Shape(double flare, double scale)
@@ -162,6 +173,18 @@ internal sealed class NotchSurface
         shape.FillBrush = brush;
         Bind(shape, "Offset", offset);
         return shape;
+    }
+
+    /// <summary>A gradient from the top of the shape to its bottom, following it as it moves.</summary>
+    private CompositionLinearGradientBrush TopToBottom()
+    {
+        var brush = _c.CreateLinearGradientBrush();
+        brush.MappingMode = CompositionMappingMode.Absolute;
+        brush.ColorStops.Add(_c.CreateColorGradientStop(0, Colors.Transparent));
+        brush.ColorStops.Add(_c.CreateColorGradientStop(1, Colors.Transparent));
+        Bind(brush, "StartPoint", "Vector2(p.Pos.X, p.Pos.Y)");
+        Bind(brush, "EndPoint", "Vector2(p.Pos.X, p.Pos.Y + p.Size.Y)");
+        return brush;
     }
 
     private CompositionRadialGradientBrush Gradient()
