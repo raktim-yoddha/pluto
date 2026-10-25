@@ -68,7 +68,7 @@ public sealed partial class PetWindow : Window
         Native.SetHitArea(_hwnd, 0, 0, 0, 0);
         Native.KeepOnTop(_hwnd); // first, so Settings (kept later) sits above it
         BotFace.SetEyes(ViewModel.Eyes);
-        ApplyTheme(live: false); // before anything is drawn
+        ApplyTheme(); // before anything is drawn; a theme change builds a new window (see Retire)
 
         var queue = DispatcherQueue;
         _settle = Timer(queue, 140, () => Arrange(jump: true)); // after a note fades out, go small
@@ -84,7 +84,8 @@ public sealed partial class PetWindow : Window
 
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.MomentHappened += OnMoment;
-        ViewModel.Todo.Items.CollectionChanged += (_, _) => QueueArrange();
+        ViewModel.Todo.Items.CollectionChanged += OnListChanged;
+        ViewModel.VisibleRows.CollectionChanged += OnListChanged; // an agent came or went: the list's height may change
         Root.ActualThemeChanged += (_, _) => Paint();
         Root.Loaded += (_, _) =>
         {
@@ -96,28 +97,46 @@ public sealed partial class PetWindow : Window
             ViewModel.Refresh();
             Face.Mood = SoloFace.Mood = ViewModel.Mood;
             Arrange(jump: true);
+            WatchClicks();
             Root.XamlRoot.Changed += (_, _) => QueueArrange(); // another screen or scale
             _tick.Start();
             _gaze.Start();
         };
-        Closed += (_, _) =>
-        {
-            _tick.Stop();
-            _gaze.Stop();
-            Native.StopWatchingClicks();
-        };
+        Closed += (_, _) => Retire();
     }
 
     public PetViewModel ViewModel { get; }
+
+    /// <summary>The Settings page on show, or null when Settings is closed (kept across a theme change).</summary>
+    public string? SettingsPage => _settings?.Page;
+
+    /// <summary>
+    /// Lets go of everything this window listens to and keeps on top, and closes its Settings. A theme change builds a
+    /// fresh window, because controls keep colours they already looked up and a live switch leaves them half-changed.
+    /// </summary>
+    public void Retire()
+    {
+        _tick.Stop();
+        _gaze.Stop();
+        Native.StopWatchingClicks();
+        Native.LetGo(_hwnd);
+        ViewModel.PropertyChanged -= OnViewModelChanged;
+        ViewModel.MomentHappened -= OnMoment;
+        ViewModel.Todo.Items.CollectionChanged -= OnListChanged;
+        ViewModel.VisibleRows.CollectionChanged -= OnListChanged;
+        _settings?.Close();
+    }
+
+    private void OnListChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => QueueArrange();
 
     /// <summary>Shows the pet without taking focus from whatever you're typing in.</summary>
     public void ShowWithoutFocus() => AppWindow.Show(activateWindow: false);
 
     // ── Theme ──────────────────────────────────────────────────────────────────────────────
 
-    private void ApplyTheme(bool live = true)
+    private void ApplyTheme()
     {
-        Themes.Apply(Root, ViewModel.Theme, live, background: false); // the window stays see-through; the body has the colour
+        Themes.Apply(Root, ViewModel.Theme, background: false); // the window stays see-through; the body has the colour
         Paint();
     }
 
@@ -141,7 +160,7 @@ public sealed partial class PetWindow : Window
                 MovePill(animate: false);
                 Arrange();
                 break;
-            case nameof(PetViewModel.VisibleRows) or nameof(PetViewModel.IsEmpty) or nameof(PetViewModel.Section) or nameof(PetViewModel.ShowHiveory):
+            case nameof(PetViewModel.IsEmpty) or nameof(PetViewModel.Section) or nameof(PetViewModel.ShowHiveory):
                 SyncTabs();
                 QueueArrange(); // once the bindings have shown the new rows, so the list is measured as it now is
                 break;
@@ -151,9 +170,6 @@ public sealed partial class PetWindow : Window
                 break;
             case nameof(PetViewModel.Size):
                 Arrange(jump: true);
-                break;
-            case nameof(PetViewModel.Theme):
-                ApplyTheme();
                 break;
             case nameof(PetViewModel.Eyes):
                 BotFace.SetEyes(ViewModel.Eyes);
@@ -284,12 +300,24 @@ public sealed partial class PetWindow : Window
         var settledHit = look is Look.Tucked or Look.Face ? Placement.Pop(layout.Small, ViewModel.Dock, layout.Zoom) : target;
         _hit = motion == Motion.Jump ? settledHit : _hit.Union(settledHit);
         SetHit(_hit, flare, scale);
-        _surface.MoveTo(target, Radius(look, notch, layout), motion, () =>
+        // Asked again for the shape it already has (the list refreshes every second): leave the spring alone, so nothing
+        // restarts or bounces.
+        var radius = Radius(look, notch, layout);
+        if (motion != Motion.Jump && target == _lastTarget && radius == _lastRadius)
+        {
+            return;
+        }
+
+        (_lastTarget, _lastRadius) = (target, radius);
+        _surface.MoveTo(target, radius, motion, () =>
         {
             _hit = settledHit;
             SetHit(_hit, flare, scale);
         });
     }
+
+    private Area _lastTarget;
+    private double _lastRadius;
 
     /// <summary>How round the body's corners are for a look.</summary>
     private static double Radius(Look look, bool notch, Layout layout) => (look, notch) switch
@@ -934,10 +962,15 @@ public sealed partial class PetWindow : Window
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
 
     /// <summary>One settings window, kept on top just above the pet; asking again brings it to the front.</summary>
-    public void OpenSettings()
+    public void OpenSettings(string? page = null)
     {
         var first = _settings is null;
         _settings ??= new SettingsWindow(ViewModel);
+        if (page is not null)
+        {
+            _settings.Page = page;
+        }
+
         var hwnd = WindowNative.GetWindowHandle(_settings);
         _settings.Present();
         if (first)
@@ -954,7 +987,7 @@ public sealed partial class PetWindow : Window
 
     private void OnRowClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not Row row)
+        if (e.ClickedItem is not AgentRow { Row: var row })
         {
             return;
         }

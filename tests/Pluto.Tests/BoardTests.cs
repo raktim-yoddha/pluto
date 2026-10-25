@@ -162,3 +162,29 @@ public class HiveoryLinkTests
         Assert.Equal(PetState.Working, agents[1].State);
     }
 }
+
+public class AgentRowTests
+{
+    private static Row R(string key, string time, string activity = "") =>
+        new(key, key, string.Empty, string.Empty, activity, Pluto.Agents.PetState.Working, false, time, false, 0, "claude");
+
+    [Fact]
+    public void The_list_keeps_each_agent_row_and_updates_it_in_place()
+    {
+        var rows = new System.Collections.ObjectModel.ObservableCollection<AgentRow>();
+        AgentRow.Sync(rows, [R("a", "0:01"), R("b", "0:01")]);
+        var (a, b) = (rows[0], rows[1]);
+        var changes = 0;
+        rows.CollectionChanged += (_, _) => changes++;
+
+        AgentRow.Sync(rows, [R("a", "0:02", "Editing"), R("b", "0:02")]); // a second later: same agents
+        Assert.Equal(0, changes); // no row was replaced, so the list redraws nothing but the changed text
+        Assert.Same(a, rows[0]);
+        Assert.Equal("0:02", a.Time);
+        Assert.Equal("Editing", a.Activity);
+
+        AgentRow.Sync(rows, [R("c", "0:00"), R("b", "0:03")]);
+        Assert.Equal(["c", "b"], rows.Select(r => r.Key));
+        Assert.Same(b, rows[1]);
+    }
+}

@@ -9,6 +9,7 @@ public partial class App : Application
     private Mutex? _single;
     private Pet? _pet;
     private PetWindow? _window;
+    private PetViewModel? _viewModel;
 
     public App()
     {
@@ -29,16 +30,54 @@ public partial class App : Application
         var ui = DispatcherQueue.GetForCurrentThread();
         _pet = new Pet(action => ui.TryEnqueue(() => action()));
         _pet.Start();
-        _window = new PetWindow(new PetViewModel(_pet));
-        _window.Closed += (_, _) =>
+        _viewModel = new PetViewModel(_pet);
+        _viewModel.PropertyChanged += (_, e) =>
         {
-            _pet.Dispose();
-            _single.Dispose();
+            if (e.PropertyName == nameof(PetViewModel.Theme))
+            {
+                ui.TryEnqueue(Rebuild); // after the Settings change that asked for it has finished
+            }
         };
-        _window.ShowWithoutFocus();
+        Show(new PetWindow(_viewModel));
         if (Environment.GetCommandLineArgs().Contains("--settings"))
         {
-            _window.OpenSettings(); // "Pluto --settings": straight to Settings (a Start menu shortcut can use it)
+            _window?.OpenSettings(); // "Pluto --settings": straight to Settings (a Start menu shortcut can use it)
+        }
+    }
+
+    /// <summary>The pet's window; closing the one on show quits Pluto.</summary>
+    private void Show(PetWindow window)
+    {
+        _window = window;
+        window.Closed += (_, _) =>
+        {
+            if (window == _window)
+            {
+                _pet?.Dispose();
+                _single?.Dispose();
+            }
+        };
+        window.ShowWithoutFocus();
+    }
+
+    /// <summary>
+    /// A new theme: a fresh pet window (and Settings, on the same page, if it was open), every colour looked up anew.
+    /// Repainting the windows in place left controls with some of the old theme's colours.
+    /// </summary>
+    private void Rebuild()
+    {
+        if (_window is not { } old || _viewModel is null)
+        {
+            return;
+        }
+
+        var page = old.SettingsPage;
+        old.Retire();
+        Show(new PetWindow(_viewModel));
+        old.Close();
+        if (page is not null)
+        {
+            _window?.OpenSettings(page);
         }
     }
 }

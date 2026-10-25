@@ -3,6 +3,12 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.1.1 — 2026-10-26 — Steady list while agents work, clean theme switching
+
+- The open list no longer flickers and bounces while an agent works: each agent's row updates in place instead of
+  the whole list being rebuilt every second.
+- Changing the theme no longer leaves Pluto or its Settings half in the old colours.
+
 ## 0.1.0 — 2026-10-26 — First release: Pluto watches every coding agent from a notch
 
 - A small bot with dotted or oval eyes lives in a notch at the top of your screen (or floats anywhere) and shows

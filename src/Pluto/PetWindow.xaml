@@ -170,37 +170,37 @@
                 <StackPanel Visibility="{x:Bind local:Ui.Shown(ViewModel.ShowAgents), Mode=OneWay}">
                     <ListView
                         MaxHeight="384"
-                        ItemsSource="{x:Bind ViewModel.VisibleRows, Mode=OneWay}"
+                        ItemsSource="{x:Bind ViewModel.VisibleRows}"
                         SelectionMode="None"
                         IsItemClickEnabled="True"
                         ItemClick="OnRowClick"
                         AutomationProperties.Name="Agent sessions">
                         <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="local:Row">
-                                <Grid MinHeight="52" Padding="0,6,0,6" ColumnSpacing="12" AutomationProperties.Name="{x:Bind Title}">
+                            <DataTemplate x:DataType="local:AgentRow">
+                                <Grid MinHeight="52" Padding="0,6,0,6" ColumnSpacing="12" AutomationProperties.Name="{x:Bind Title, Mode=OneWay}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="20" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Image Width="20" Height="20" VerticalAlignment="Center" Source="{x:Bind local:Ui.Icon(Icon)}" />
+                                    <Image Width="20" Height="20" VerticalAlignment="Center" Source="{x:Bind local:Ui.Icon(Icon), Mode=OneWay}" />
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
                                         <Grid ColumnSpacing="6">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyTextBlockStyle}" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{x:Bind Title, Mode=OneWay}" Style="{StaticResource BodyTextBlockStyle}" MaxLines="1" TextTrimming="CharacterEllipsis" />
                                             <TextBlock
                                                 Grid.Column="1"
                                                 VerticalAlignment="Center"
-                                                Text="{x:Bind Where}"
+                                                Text="{x:Bind Where, Mode=OneWay}"
                                                 Style="{StaticResource CaptionTextBlockStyle}"
                                                 Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                                 MaxLines="1"
                                                 TextTrimming="CharacterEllipsis" />
                                         </Grid>
-                                        <Grid ColumnSpacing="5" Visibility="{x:Bind local:Ui.ShownEither(Place, Activity)}">
+                                        <Grid ColumnSpacing="5" Visibility="{x:Bind local:Ui.ShownEither(Place, Activity), Mode=OneWay}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
@@ -210,11 +210,11 @@
                                                 Glyph="&#xE8B7;"
                                                 FontSize="11"
                                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                Visibility="{x:Bind local:Ui.Shown(Place)}"
+                                                Visibility="{x:Bind local:Ui.Shown(Place), Mode=OneWay}"
                                                 AutomationProperties.Name="Folder" />
                                             <TextBlock
                                                 Grid.Column="1"
-                                                Text="{x:Bind local:Ui.Detail(Place, Activity)}"
+                                                Text="{x:Bind local:Ui.Detail(Place, Activity), Mode=OneWay}"
                                                 Style="{StaticResource CaptionTextBlockStyle}"
                                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                 MaxLines="1"
@@ -224,14 +224,14 @@
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
                                         <TextBlock
                                             VerticalAlignment="Center"
-                                            Text="{x:Bind Time}"
+                                            Text="{x:Bind Time, Mode=OneWay}"
                                             FontFamily="{ThemeResource PlutoDisplayFont}"
                                             FontSize="12"
                                             Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                         <Grid Width="14" Height="14" VerticalAlignment="Center">
-                                            <ProgressRing Width="14" Height="14" IsActive="True" Foreground="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'working')}" />
-                                            <Ellipse Width="8" Height="8" Fill="{ThemeResource SystemFillColorCautionBrush}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'needs')}" />
-                                            <InfoBadge HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource SuccessDotInfoBadgeStyle}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'done')}" />
+                                            <ProgressRing Width="14" Height="14" IsActive="True" Foreground="{ThemeResource AccentFillColorDefaultBrush}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'working'), Mode=OneWay}" />
+                                            <Ellipse Width="8" Height="8" Fill="{ThemeResource SystemFillColorCautionBrush}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'needs'), Mode=OneWay}" />
+                                            <InfoBadge HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource SuccessDotInfoBadgeStyle}" Visibility="{x:Bind local:Ui.Status(State, JustFinished, 'done'), Mode=OneWay}" />
                                         </Grid>
                                     </StackPanel>
                                 </Grid>

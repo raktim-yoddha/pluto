@@ -105,8 +105,8 @@ public sealed partial class PetViewModel : ObservableObject
     public partial IReadOnlyList<Row> Rows { get; private set; } = [];
 
     /// <summary>The agents of the section on show.</summary>
-    [ObservableProperty]
-    public partial IReadOnlyList<Row> VisibleRows { get; private set; } = [];
+    /// <summary>The agents of the section on show, kept and updated in place (see <see cref="AgentRow"/>).</summary>
+    public ObservableCollection<AgentRow> VisibleRows { get; } = [];
 
     [ObservableProperty]
     public partial string EmptyText { get; private set; } = string.Empty;
@@ -300,9 +300,10 @@ public sealed partial class PetViewModel : ObservableObject
             Rows = rows;
         }
 
-        if (!visible.SequenceEqual(VisibleRows))
+        var wasEmpty = IsEmpty;
+        AgentRow.Sync(VisibleRows, visible);
+        if (wasEmpty != IsEmpty)
         {
-            VisibleRows = visible;
             OnPropertyChanged(nameof(IsEmpty));
         }
 

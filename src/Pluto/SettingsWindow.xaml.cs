@@ -20,10 +20,15 @@ public sealed partial class SettingsWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(Bar);
         AppWindow.SetIcon(Ui.LogoPath);
-        ApplyTheme(live: false); // before anything is drawn
+        ApplyTheme(); // before anything is drawn; a theme change rebuilds the window (see PetWindow.Retire)
         RootGrid.Loaded += (_, _) => Center();
-        ViewModel.PropertyChanged += OnViewModelChanged;
-        Closed += (_, _) => ViewModel.PropertyChanged -= OnViewModelChanged;
+    }
+
+    /// <summary>The page on show ("general", "todo", "history", "about").</summary>
+    public string Page
+    {
+        get => (Nav.SelectedItem as NavigationViewItem)?.Tag as string ?? "general";
+        set => Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => (string)i.Tag == value) ?? Nav.SelectedItem;
     }
 
     public PetViewModel ViewModel { get; }
@@ -46,20 +51,12 @@ public sealed partial class SettingsWindow : Window
         Native.Focus(WinRT.Interop.WindowNative.GetWindowHandle(this));
     }
 
-    private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(PetViewModel.Theme))
-        {
-            ApplyTheme();
-        }
-    }
-
     /// <summary>Mica in the Windows theme; solid black or white in the monochrome ones.</summary>
-    private void ApplyTheme(bool live = true)
+    private void ApplyTheme()
     {
         var theme = ViewModel.Theme;
         SystemBackdrop = Themes.UsesBackdrop(theme) ? new MicaBackdrop() : null;
-        Themes.Apply(RootGrid, theme, live);
+        Themes.Apply(RootGrid, theme);
     }
 
     /// <summary>A comfortable size in DIPs, centred on the primary screen.</summary>

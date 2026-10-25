@@ -26,31 +26,20 @@ public static class Themes
     public static bool UsesBackdrop(PlutoTheme theme) => theme == PlutoTheme.Windows;
 
     /// <summary>
-    /// Applies <paramref name="theme"/> to a window's root: light or dark, the overrides, and (with
-    /// <paramref name="background"/>) the window's background. Before the
-    /// root is drawn that's all; on a live change (<paramref name="live"/>) the light/dark theme is flipped and set back
-    /// a frame later, which makes every control look its resources up again (flipping twice at once crashes WinUI).
+    /// Applies <paramref name="theme"/> to a window's root before it is drawn: light or dark, the overrides, and (with
+    /// <paramref name="background"/>) the window's background. Switching themes builds the windows afresh instead of
+    /// repainting them: controls keep colours they already looked up, so a live switch left them half-changed.
     /// </summary>
-    public static void Apply(FrameworkElement root, PlutoTheme theme, bool live = false, bool background = true)
+    public static void Apply(FrameworkElement root, PlutoTheme theme, bool background = true)
     {
         root.Resources.MergedDictionaries.Clear();
         root.Resources.MergedDictionaries.Add(Dictionary(theme));
-        var target = theme switch
+        root.RequestedTheme = theme switch
         {
             PlutoTheme.Black => ElementTheme.Dark,
             PlutoTheme.White => ElementTheme.Light,
             _ => ElementTheme.Default,
         };
-
-        if (live)
-        {
-            root.RequestedTheme = root.ActualTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
-            root.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => root.RequestedTheme = target);
-        }
-        else
-        {
-            root.RequestedTheme = target;
-        }
 
         if (background && root is Microsoft.UI.Xaml.Controls.Panel panel)
         {
