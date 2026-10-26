@@ -3,6 +3,10 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.2.2 — 2026-10-26 — Clicks work again
+
+- Clicking Pluto opens the list again (0.2.1 ignored clicks).
+
 ## 0.2.1 — 2026-10-26 — Acrylic notch, depth on every theme, steadier dragging
 
 - In the Windows theme the notch and the capsule are Windows' own acrylic, cut to their shape and gliding open with them.

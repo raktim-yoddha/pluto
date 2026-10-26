@@ -450,13 +450,14 @@ public sealed partial class PetWindow : Window
 
     private void OnReleased(object sender, PointerRoutedEventArgs e)
     {
+        // Read the flag first: releasing the capture raises PointerCaptureLost right away, which clears it.
+        var pressed = _pressed;
         Root.ReleasePointerCapture(e.Pointer);
         if (_dragging)
         {
             return; // the drag ends on its own frame, when the button is up (OnDragFrame)
         }
 
-        var pressed = _pressed;
         _pressed = false;
         if (pressed)
         {
