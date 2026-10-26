@@ -73,8 +73,8 @@ internal sealed class NotchSurface
         mask.VerticalAlignmentRatio = 0;
         _shadow = _c.CreateDropShadow();
         _shadow.Mask = mask;
-        _shadow.BlurRadius = (float)ShadowReach;
-        _shadow.Offset = new Vector3(0, 3, 0);
+        _shadow.BlurRadius = 9;
+        _shadow.Offset = new Vector3(0, 2, 0);
         _shadow.Color = Colors.Black;
         var caster = _c.CreateSpriteVisual();
         caster.RelativeSizeAdjustment = Vector2.One;
@@ -122,8 +122,11 @@ internal sealed class NotchSurface
     /// <summary>How thick the capsule's rim is (DIPs); half of it lies outside the shape.</summary>
     public const double Rim = 2;
 
-    /// <summary>How far the shadow reaches past the shape (DIPs): the hit area leaves room for it.</summary>
-    public const double ShadowReach = 14;
+    /// <summary>
+    /// How far the shadow reaches past the shape (DIPs). The window's drawing area leaves room for it, so it is kept
+    /// tight; the pointer only counts on the body itself (PetWindow.OnBody).
+    /// </summary>
+    public const double ShadowReach = 7;
 
     /// <summary>The springs for each kind of move (values from the Windows design team's guidance, tuned by eye).</summary>
     public static (float Damping, int Period) SpringFor(Motion motion) => motion switch

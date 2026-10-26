@@ -300,7 +300,7 @@ public sealed partial class PetWindow : Window
         }
 
         _shown = look;
-        var settledHit = look is Look.Tucked or Look.Face ? Placement.Pop(layout.Small, ViewModel.Dock, layout.Zoom) : target;
+        var settledHit = target;
         _hit = motion == Motion.Jump ? settledHit : _hit.Union(settledHit);
         SetHit(_hit, flare, scale);
         // Asked again for the shape it already has (the list refreshes every second): leave the spring alone, so nothing
@@ -391,6 +391,12 @@ public sealed partial class PetWindow : Window
     private void OnPressed(object sender, PointerRoutedEventArgs e)
     {
         // Open, only the heading takes a click (it folds the list); small, a press may become a drag.
+        var (cx, cy) = Native.Cursor();
+        if (!OnBody(cx, cy, popped: _hover))
+        {
+            return;
+        }
+
         var heading = ViewModel.Look == Look.List && e.GetCurrentPoint(ListLayer).Position.Y < 56;
         if ((ViewModel.Look == Look.List && !heading) || !e.GetCurrentPoint(Root).Properties.IsLeftButtonPressed)
         {
@@ -407,6 +413,7 @@ public sealed partial class PetWindow : Window
     {
         if (!_pressed)
         {
+            Track();
             return;
         }
 
@@ -505,13 +512,45 @@ public sealed partial class PetWindow : Window
         }
     }
 
-    private void OnEntered(object sender, PointerRoutedEventArgs e)
+    private void OnEntered(object sender, PointerRoutedEventArgs e) => Track();
+
+    /// <summary>
+    /// Pointing counts only on the body itself, not on the room left around it for the shadow and shoulders: Pluto pops
+    /// when the cursor is on it, and lets go once it leaves the popped shape (a little give, so it doesn't flicker).
+    /// </summary>
+    private void Track()
     {
-        if (!_hover && !_pressed)
+        if (_pressed || _dragging)
         {
-            _hover = true;
+            return;
+        }
+
+        var (x, y) = Native.Cursor();
+        var on = OnBody(x, y, popped: _hover);
+        if (on != _hover)
+        {
+            _hover = on;
             Arrange();
         }
+    }
+
+    /// <summary>The cursor (screen pixels) is on Pluto's body as drawn now (the popped shape while popped).</summary>
+    private bool OnBody(int x, int y, bool popped)
+    {
+        if (_layout is null || Root.XamlRoot is null)
+        {
+            return false;
+        }
+
+        var look = ViewModel.Look;
+        var area = _layout.For(look);
+        if (popped && look is Look.Tucked or Look.Face)
+        {
+            area = Placement.Pop(area, ViewModel.Dock, _layout.Zoom);
+        }
+
+        var r = Placement.OnScreen(area, _window, Root.XamlRoot.RasterizationScale);
+        return x >= r.X && x < r.Right && y >= r.Y && y < r.Bottom;
     }
 
     private void OnExited(object sender, PointerRoutedEventArgs e)
