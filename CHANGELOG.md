@@ -3,6 +3,13 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.2.1 — 2026-10-26 — Acrylic notch, depth on every theme, steadier dragging
+
+- In the Windows theme the notch and the capsule are Windows' own acrylic, cut to their shape and gliding open with them.
+- Black and White bodies stand out from backgrounds of their own colour: a soft shadow and a faint light along the edge.
+- Dragging is simpler: Pluto is a small pill while it moves and is simply there when you let go.
+- A fast drag no longer drops Pluto halfway: it follows the cursor until you let go of the button.
+
 ## 0.2.0 — 2026-10-26 — Install with Setup.exe, and Pluto updates itself
 
 - Pluto-Setup.exe installs Pluto in one click (Start menu, Apps & features); Pluto-Portable.zip runs from any folder.

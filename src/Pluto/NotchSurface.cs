@@ -32,6 +32,9 @@ internal sealed class NotchSurface
     private Color _rimTop;
     private Color _rimBottom;
     private bool _rimOn = true;
+    private bool _capsule;
+    private readonly DropShadow _shadow;
+    private readonly CompositionVisualSurface _shadowShape;
 
     /// <param name="host">An empty element covering the window: the shape is drawn as its child visual.</param>
     /// <param name="content">What sits on the shape; it is clipped to it.</param>
@@ -60,42 +63,95 @@ internal sealed class NotchSurface
         visual.Shapes.Add(Shoulder(_leftShoulder, "Vector2(p.Pos.X - p.Flare, p.Pos.Y)"));
         visual.Shapes.Add(Shoulder(_rightShoulder, "Vector2(p.Pos.X + p.Size.X, p.Pos.Y)"));
         visual.Shapes.Add(body);
-        ElementCompositionPreview.SetElementChildVisual(host, visual);
+
+        // A soft shadow cast by the very same shape, so the body lifts off backgrounds of its own colour.
+        _shadowShape = _c.CreateVisualSurface();
+        _shadowShape.SourceVisual = visual;
+        var mask = _c.CreateSurfaceBrush(_shadowShape);
+        mask.Stretch = CompositionStretch.None;
+        mask.HorizontalAlignmentRatio = 0;
+        mask.VerticalAlignmentRatio = 0;
+        _shadow = _c.CreateDropShadow();
+        _shadow.Mask = mask;
+        _shadow.BlurRadius = (float)ShadowReach;
+        _shadow.Offset = new Vector3(0, 3, 0);
+        _shadow.Color = Colors.Black;
+        var caster = _c.CreateSpriteVisual();
+        caster.RelativeSizeAdjustment = Vector2.One;
+        caster.Shadow = _shadow;
+
+        var layers = _c.CreateContainerVisual();
+        layers.RelativeSizeAdjustment = Vector2.One;
+        layers.Children.InsertAtTop(caster);
+        layers.Children.InsertAtTop(visual);
+        ElementCompositionPreview.SetElementChildVisual(host, layers);
 
         // The same expressions drive the clip, so content and shape move together, frame for frame.
         ElementCompositionPreview.GetElementVisual(content).Clip = _c.CreateGeometricClip(Rounded());
     }
 
     /// <summary>
-    /// The colours. A notch is one solid colour, like the real thing. The floating capsule is lit from above: its fill
-    /// fades from <paramref name="fillTop"/> to <paramref name="fill"/>, inside a soft rim that runs from
-    /// <paramref name="rimTop"/> to <paramref name="rimBottom"/> (shown with <see cref="ShowRim"/>).
+    /// The colours. A notch is one solid colour, like the real thing, with a faint light along its lower edge for
+    /// depth. The floating capsule is lit from above: its fill fades from <see cref="Surface.FillTop"/> down, inside a
+    /// soft rim (shown with <see cref="ShowRim"/>). Both cast a soft shadow. With <paramref name="acrylic"/> (the
+    /// Windows theme) the body itself is Windows' acrylic (<see cref="AcrylicBody"/>), so this draws no fill or shadow.
     /// </summary>
-    public void Paint(Color fill, Color fillTop, Color rimTop, Color rimBottom, bool capsule)
+    public void Paint(Surface body, bool capsule, bool acrylic)
     {
-        _color = fill;
-        _fill.ColorStops[0].Color = capsule ? fillTop : fill;
-        _fill.ColorStops[1].Color = fill;
-        (_rimTop, _rimBottom) = (rimTop, rimBottom);
-        _body.StrokeThickness = capsule ? (float)Rim : 0;
+        _capsule = capsule;
+        _color = acrylic ? Colors.Transparent : body.Fill;
+        _fill.ColorStops[0].Color = acrylic ? Colors.Transparent : capsule ? body.FillTop : body.Fill;
+        _fill.ColorStops[1].Color = _color;
+        _shadow.Opacity = acrylic ? 0 : body.Shadow;
+
+        // The capsule's rim, or along a notch's sides and bottom a faint light, brightest at the bottom.
+        (_rimTop, _rimBottom) = capsule ? (body.RimTop, body.RimBottom) : (Clear(body.Edge), body.Edge);
+        // Acrylic draws its own edge, on Windows' layer; a line here would lag it by a frame while the body moves.
+        _body.StrokeThickness = acrylic ? 0 : capsule ? (float)Rim : 1;
         foreach (var stop in _rim.ColorStops)
         {
             stop.StopAnimation("Color");
         }
 
-        _rim.ColorStops[0].Color = _rimOn ? rimTop : Clear(rimTop);
-        _rim.ColorStops[1].Color = _rimOn ? rimBottom : Clear(rimBottom);
+        var on = _rimOn || !capsule;
+        _rim.ColorStops[0].Color = on ? _rimTop : Clear(_rimTop);
+        _rim.ColorStops[1].Color = on ? _rimBottom : Clear(_rimBottom);
         Shape(_flare, _scale);
     }
 
     /// <summary>How thick the capsule's rim is (DIPs); half of it lies outside the shape.</summary>
     public const double Rim = 2;
 
-    /// <summary>The rim fades in on the small capsule and out as it opens into the list.</summary>
+    /// <summary>How far the shadow reaches past the shape (DIPs): the hit area leaves room for it.</summary>
+    public const double ShadowReach = 14;
+
+    /// <summary>The springs for each kind of move (values from the Windows design team's guidance, tuned by eye).</summary>
+    public static (float Damping, int Period) SpringFor(Motion motion) => motion switch
+    {
+        Motion.Open => (0.86f, 50),
+        Motion.Pop => (0.75f, 44),
+        _ => (0.95f, 44),
+    };
+
+    /// <summary>The window's size (DIPs), so the shadow's shape covers all of it.</summary>
+    public void Frame(Vector2 size) => _shadowShape.SourceSize = size;
+
+    /// <summary>
+    /// While Pluto is being dragged it is just a small rounded pill: no shoulders, all four corners round. Dropped, the
+    /// next arrangement gives it its shape again.
+    /// </summary>
+    public void Detach()
+    {
+        _p.InsertScalar("Flare", 0);
+        _p.InsertScalar("Lift", 0);
+    }
+
+    /// <summary>The rim fades in on the small capsule and out as it opens into the list (a notch keeps its edge light).</summary>
     public void ShowRim(bool on)
     {
-        if (on == _rimOn)
+        if (on == _rimOn || !_capsule)
         {
+            _rimOn = on;
             return;
         }
 
@@ -148,13 +204,7 @@ internal sealed class NotchSurface
             return;
         }
 
-        // Values recommended by the Windows design team for size and offset springs, tuned by eye.
-        var (damping, period) = motion switch
-        {
-            Motion.Open => (0.8f, 52),
-            Motion.Pop => (0.62f, 46),
-            _ => (0.92f, 46),
-        };
+        var (damping, period) = SpringFor(motion);
 
         var batch = _c.CreateScopedBatch(CompositionBatchTypes.Animation);
         _p.StartAnimation("Pos", Spring2(pos, damping, period));

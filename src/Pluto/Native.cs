@@ -171,6 +171,10 @@ internal static partial class Native
         }
     }
 
+    /// <summary>The primary mouse button is down right now (whichever physical button that is).</summary>
+    public static bool PrimaryButtonDown() =>
+        (GetAsyncKeyState(GetSystemMetrics(23 /* SM_SWAPBUTTON */) != 0 ? 0x02 : 0x01) & 0x8000) != 0;
+
     /// <summary>The cursor in physical screen pixels.</summary>
     public static (int X, int Y) Cursor() => GetCursorPos(out var p) ? (p.X, p.Y) : (0, 0);
 
@@ -322,6 +326,12 @@ internal static partial class Native
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetCursorPos(out Point point);
+
+    [LibraryImport("user32.dll")]
+    private static partial short GetAsyncKeyState(int key);
+
+    [LibraryImport("user32.dll")]
+    private static partial int GetSystemMetrics(int index);
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

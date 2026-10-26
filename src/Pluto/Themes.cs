@@ -168,6 +168,14 @@ public static class Themes
 /// <summary>Pluto's body colours: the fill (and its lit top, floating) and the floating capsule's rim, top to bottom.</summary>
 public readonly record struct Surface(Color Fill, Color FillTop, Color RimTop, Color RimBottom)
 {
+    /// <summary>The faint light along a notch's lower edge: ink at a whisper, so a body on its own colour still reads.</summary>
+    public Color Edge => Fill.R + Fill.G + Fill.B > 384
+        ? Color.FromArgb(0x26, 0, 0, 0)
+        : Color.FromArgb(0x3A, 0xFF, 0xFF, 0xFF);
+
+    /// <summary>How dark the shadow is: stronger under a light body, where it shows best.</summary>
+    public float Shadow => Fill.R + Fill.G + Fill.B > 384 ? 0.28f : 0.55f;
+
     /// <summary>Something raised on the body (a task being moved): a step towards the light, fully opaque.</summary>
     public Color Lift => Color.FromArgb(255, Step(Fill.R), Step(Fill.G), Step(Fill.B));
 

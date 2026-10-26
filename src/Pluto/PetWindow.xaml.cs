@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using VirtualKey = Windows.System.VirtualKey;
+using WinRT;
 using WinRT.Interop;
 
 namespace Pluto;
@@ -35,7 +36,7 @@ public sealed partial class PetWindow : Window
     private Layout? _layout;
     private Box _window;
     private Area _hit;
-    private Box? _glideFrom;
+    private AcrylicBody? _acrylic;
     private Look _shown = Look.Tucked;
     private bool _hover;
     private bool _menuOpen;
@@ -91,6 +92,12 @@ public sealed partial class PetWindow : Window
         {
             Native.MakePetWindow(_hwnd); // again once shown: WinUI sets the frame up late, after the constructor
             _surface = new NotchSurface(ShapeHost, Stage);
+            _surface.Frame(new Vector2((float)Placement.FrameWidth, (float)Placement.FrameHeight));
+            if (ViewModel.Theme == PlutoTheme.Windows && AcrylicBody.IsSupported)
+            {
+                _acrylic = new AcrylicBody(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>(), Root.ActualTheme == ElementTheme.Light);
+            }
+
             _pill = new TabPill(TabPillHost);
             Tabs.SizeChanged += (_, _) => MovePill(animate: false);
             Paint();
@@ -120,6 +127,7 @@ public sealed partial class PetWindow : Window
         _gaze.Stop();
         Native.StopWatchingClicks();
         Native.LetGo(_hwnd);
+        _acrylic?.Dispose();
         ViewModel.PropertyChanged -= OnViewModelChanged;
         ViewModel.MomentHappened -= OnMoment;
         ViewModel.Todo.Items.CollectionChanged -= OnListChanged;
@@ -145,7 +153,8 @@ public sealed partial class PetWindow : Window
         var (ink, alert) = Themes.FaceColors(ViewModel.Theme, Root.ActualTheme);
         BotFace.Paint(ink, alert);
         var body = Themes.SurfaceColors(ViewModel.Theme, Root.ActualTheme);
-        _surface?.Paint(body.Fill, body.FillTop, body.RimTop, body.RimBottom, capsule: ViewModel.Dock == Dock.Floating);
+        _surface?.Paint(body, capsule: ViewModel.Dock == Dock.Floating, acrylic: _acrylic is not null);
+        _acrylic?.Light(Root.ActualTheme == ElementTheme.Light);
         _pill?.Paint(Themes.PillColor(ViewModel.Theme, Root.ActualTheme));
     }
 
@@ -257,6 +266,7 @@ public sealed partial class PetWindow : Window
         var flare = notch ? Placement.Flare(ViewModel.Size) : 0;
         _surface.Shape(flare, scale);
         _surface.ShowRim(look != Look.List);
+        _acrylic?.Shape(flare, scale, new Vector2((float)Placement.FrameWidth, (float)Placement.FrameHeight));
         var target = layout.For(look);
         if (_hover && look is Look.Tucked or Look.Face)
         {
@@ -270,16 +280,9 @@ public sealed partial class PetWindow : Window
             : _shown == Look.List && look != Look.List ? Motion.Close
             : look == Look.List ? Motion.Open
             : Motion.Pop;
-        if (_glideFrom is { } from)
+        if (moved)
         {
-            // Dropped: start where it was let go, then glide into its new spot.
-            _surface.MoveTo(new Area((from.X - _window.X) / scale, (from.Y - _window.Y) / scale, from.Width / scale, from.Height / scale), Radius(look, notch, layout), Motion.Jump);
-            motion = Motion.Open;
-            _glideFrom = null;
-        }
-        else if (moved)
-        {
-            motion = Motion.Jump;
+            motion = Motion.Jump; // Pluto moved (dropped somewhere new, another screen): it is simply there
         }
 
         if (look == Look.Note && _shown != Look.Note)
@@ -309,6 +312,7 @@ public sealed partial class PetWindow : Window
         }
 
         (_lastTarget, _lastRadius) = (target, radius);
+        _acrylic?.MoveTo(target, radius, motion);
         _surface.MoveTo(target, radius, motion, () =>
         {
             _hit = settledHit;
@@ -332,11 +336,13 @@ public sealed partial class PetWindow : Window
     /// <summary>Only the body (and its shoulders) takes the mouse; around it, clicks go to the windows below.</summary>
     private void SetHit(Area area, double flare, double scale)
     {
-        // Wide enough for the shoulders and the capsule's rim, which reach past the shape (the area also clips drawing).
-        var pad = flare + NotchSurface.Rim;
-        var x = (int)Math.Floor((area.X - pad) * scale) - 1;
-        var y = (int)Math.Floor((area.Y - NotchSurface.Rim) * scale) - 1;
-        Native.SetHitArea(_hwnd, Math.Max(0, x), Math.Max(0, y), (int)Math.Ceiling((area.Width + (2 * pad)) * scale) + 2, (int)Math.Ceiling((area.Height + (2 * NotchSurface.Rim)) * scale) + 2);
+        // Wide enough for the shoulders, the rim and the shadow, which reach past the shape (the area also clips drawing).
+        var around = _acrylic is null ? NotchSurface.ShadowReach : NotchSurface.Rim;
+        var left = area.X - flare - around;
+        var top = area.Y - around;
+        var x = (int)Math.Floor(left * scale) - 1;
+        var y = (int)Math.Floor(top * scale) - 1;
+        Native.SetHitArea(_hwnd, Math.Max(0, x), Math.Max(0, y), (int)Math.Ceiling((area.Right + flare + around - left) * scale) + 2, (int)Math.Ceiling((area.Bottom + around - top) * scale) + 2);
     }
 
     /// <summary>Puts each look's content in its spot, at the chosen size.</summary>
@@ -410,8 +416,29 @@ public sealed partial class PetWindow : Window
             return;
         }
 
-        _dragging = true;
+        if (!_dragging)
+        {
+            // Picked up: a plain little pill while it moves, no other animation. From here it follows the cursor every
+            // frame until the button is really let go; pointer events can stop arriving when a window moves fast under
+            // the cursor, which used to drop it halfway.
+            _dragging = true;
+            _hover = false;
+            _surface?.Detach();
+            _acrylic?.Shape(0, Root.XamlRoot.RasterizationScale, new Vector2((float)Placement.FrameWidth, (float)Placement.FrameHeight));
+            TuckedFace.Scale = SoloFace.Scale = Vector3.One;
+            CompositionTarget.Rendering += OnDragFrame;
+        }
+    }
+
+    private void OnDragFrame(object? sender, object e)
+    {
         FollowCursor();
+        if (!Native.PrimaryButtonDown())
+        {
+            CompositionTarget.Rendering -= OnDragFrame;
+            _pressed = false;
+            Dropped();
+        }
     }
 
     /// <summary>Keeps the point you grabbed under the cursor.</summary>
@@ -423,16 +450,15 @@ public sealed partial class PetWindow : Window
 
     private void OnReleased(object sender, PointerRoutedEventArgs e)
     {
-        // Read the flags first: releasing the capture raises PointerCaptureLost right away, which clears them.
-        var (pressed, dragging) = (_pressed, _dragging);
-        _pressed = _dragging = false;
         Root.ReleasePointerCapture(e.Pointer);
-        if (dragging)
+        if (_dragging)
         {
-            FollowCursor(); // the last moves of a quick flick may not have arrived yet
-            Dropped();
+            return; // the drag ends on its own frame, when the button is up (OnDragFrame)
         }
-        else if (pressed)
+
+        var pressed = _pressed;
+        _pressed = false;
+        if (pressed)
         {
             VisibleFace.Hop();
             ViewModel.ToggleList();
@@ -441,16 +467,15 @@ public sealed partial class PetWindow : Window
 
     private void OnCaptureLost(object sender, PointerRoutedEventArgs e)
     {
-        if (_dragging)
+        if (!_dragging)
         {
-            _dragging = _pressed = false;
-            Dropped();
+            _pressed = false; // a press that never became a drag (the drag itself ends in OnDragFrame)
         }
     }
 
     /// <summary>
-    /// Near the top edge: a notch right there. Anywhere else: it floats where it is. Either way it glides into place, and
-    /// an open list stays open (dragged by its heading).
+    /// Near the top edge: a notch right there. Anywhere else: it floats where it is. Either way it is simply there, no
+    /// glide; an open list stays open (dragged by its heading).
     /// </summary>
     private void Dropped()
     {
@@ -467,8 +492,8 @@ public sealed partial class PetWindow : Window
         var face = Placement.OnScreen(open ? _layout.List : _layout.Small, here, scale);
         var display = DisplayArea.GetFromPoint(new PointInt32(face.CenterX, face.Y), DisplayAreaFallback.Primary);
         var work = new Box(display.WorkArea.X, display.WorkArea.Y, display.WorkArea.Width, display.WorkArea.Height);
-        _glideFrom = open ? face : Placement.OnScreen(Placement.Pop(_layout.Small, ViewModel.Dock, _layout.Zoom), here, scale);
         _window = here;
+        _hover = false;
         if (Placement.NearTop(face, work, scale))
         {
             ViewModel.NotchAt(face.CenterX);
