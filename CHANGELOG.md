@@ -3,6 +3,14 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.2.0 — 2026-10-26 — Install with Setup.exe, and Pluto updates itself
+
+- Pluto-Setup.exe installs Pluto in one click (Start menu, Apps & features); Pluto-Portable.zip runs from any folder.
+- Pluto looks for new versions on its own and downloads them in the background, then tells you: a note from the
+  notch, a dot on the gear and a "Restart now" banner in Settings. Settings › About can check now or turn it off.
+- "Start with Windows" always starts the copy of Pluto you are using, even after it moved.
+- Uninstalling takes Pluto's hooks out of your agents' configs.
+
 ## 0.1.1 — 2026-10-26 — Steady list while agents work, clean theme switching
 
 - The open list no longer flickers and bounces while an agent works: each agent's row updates in place instead of

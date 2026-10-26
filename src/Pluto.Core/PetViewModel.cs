@@ -73,6 +73,35 @@ public sealed partial class PetViewModel : ObservableObject
 
     public TodoViewModel Todo { get; }
 
+    /// <summary>Pluto's own updates (driven by the app's updater).</summary>
+    public UpdateState Update { get; } = new();
+
+    /// <summary>Settings › About › Check for updates automatically.</summary>
+    public bool AutoUpdate
+    {
+        get => _pet.Settings.AutoUpdate;
+        set
+        {
+            if (value != _pet.Settings.AutoUpdate)
+            {
+                _pet.Update(s => s with { AutoUpdate = value });
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>A note about Pluto itself (a new version is ready), shown like an agent's, unless the list is open.</summary>
+    public void Announce(string title, string text)
+    {
+        (NoteTitle, NoteText, NoteIcon, NoteMood) = (title, text, "pluto", Mood.Happy);
+        if (!_listOpen)
+        {
+            _noteUntil = _now() + NoteFor;
+        }
+
+        Refresh();
+    }
+
     [ObservableProperty]
     public partial Look Look { get; private set; }
 

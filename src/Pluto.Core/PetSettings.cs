@@ -49,6 +49,9 @@ public sealed record PetSettings
 
     public static string SoundFolder => Path.Combine(Folder, "Sounds");
 
+    /// <summary>Look for new versions of Pluto on its own, download them, and say when one is ready.</summary>
+    public bool AutoUpdate { get; set; } = true;
+
     public static string Folder { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Pluto");
 
     private static string FilePath => Path.Combine(Folder, "settings.json");

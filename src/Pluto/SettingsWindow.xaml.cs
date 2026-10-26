@@ -105,7 +105,20 @@ public sealed partial class SettingsWindow : Window
         }
     }
 
-    private void OnQuit(object sender, RoutedEventArgs e) => Application.Current.Exit();
+    private void OnQuit(object sender, RoutedEventArgs e) => App.Instance.Quit();
+
+    private async void OnCheckUpdates(object sender, RoutedEventArgs e)
+    {
+        if (App.Instance.Updater is { } updater)
+        {
+            await updater.CheckAsync();
+        }
+    }
+
+    private void OnRestartToUpdate(object sender, RoutedEventArgs e) => App.Instance.Updater?.RestartNow();
+
+    private void OnOpenReleases(object sender, RoutedEventArgs e) =>
+        Process.Start(new ProcessStartInfo(Updater.Repository + "/releases/latest") { UseShellExecute = true });
 
     /// <summary>Opens File Explorer at the to-do file, so you can see it is there.</summary>
     private void OnShowTodoFile(object sender, RoutedEventArgs e)

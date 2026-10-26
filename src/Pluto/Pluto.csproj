@@ -16,10 +16,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\Logo\pluto.ico</ApplicationIcon>
     <Product>Pluto</Product>
+    <!-- Program.cs is the entry point, so Velopack runs before anything else. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2526" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
   <ItemGroup>
     <!-- Official agent marks, from Hiveory (scripts/import-icons.mjs). -->

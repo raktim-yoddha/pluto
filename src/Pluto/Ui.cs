@@ -23,6 +23,11 @@ public static class Ui
 
     public static bool HasText(string? text) => !string.IsNullOrEmpty(text);
 
+    public static bool Not(bool value) => !value;
+
+    /// <summary>"Pluto 0.2.1 is ready".</summary>
+    public static string ReadyTitle(string? version) => $"Pluto {version} is ready";
+
     /// <summary>Struck through, for a checked task.</summary>
     public static Windows.UI.Text.TextDecorations Strike(bool struck) =>
         struck ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None;
@@ -56,6 +61,11 @@ public static class Ui
         if (string.IsNullOrEmpty(id))
         {
             return null;
+        }
+
+        if (id == "pluto")
+        {
+            return Logo; // a note about Pluto itself
         }
 
         var light = Application.Current.RequestedTheme == ApplicationTheme.Light;

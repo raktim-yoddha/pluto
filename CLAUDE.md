@@ -10,5 +10,7 @@
 - The hook relay prints nothing and always exits 0. Hooks never answer a permission.
 - Only names, statuses and short activity text ever leave an agent's hook; prompts, file contents and output never do.
 - Hiveory's side of the link is its ADR 0054; change the wire format there and here together.
-- Releases: Semantic Versioning (`Version` in `Directory.Build.props`, notes in `CHANGELOG.md`, tag `vX.Y.Z`,
-  `scripts/publish.ps1` builds the zip attached to the GitHub release). Before 1.0: features bump MINOR, fixes PATCH.
+- Releases: Semantic Versioning (`Version` in `Directory.Build.props`, notes in `CHANGELOG.md`, tag `vX.Y.Z`).
+  `scripts/pack.ps1 -Version X.Y.Z` builds every asset in `out/Releases` (Setup.exe, portable zip, the Velopack update
+  packages and `releases.win.json`); attach all of them to the GitHub release, or installed copies can't update.
+  Before 1.0: features bump MINOR, fixes PATCH.

@@ -9,7 +9,11 @@ public static class Startup
     private const string Name = "Pluto";
     private const string LegacyName = "HiveoryPet";
 
-    /// <summary>Carries a "start with Windows" from before the app was called Pluto over to the new name.</summary>
+    /// <summary>
+    /// Keeps "start with Windows" pointing at the Pluto that is running: carried over from before the app was called
+    /// Pluto, and moved along when Pluto runs from somewhere new (installed with Setup.exe, a new folder), so Windows
+    /// never starts an old copy.
+    /// </summary>
     public static void Migrate()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
@@ -18,7 +22,13 @@ public static class Startup
             key.DeleteValue(LegacyName, throwOnMissingValue: false);
             Enabled = true;
         }
+        else if (key?.GetValue(Name) is string current && current != Command)
+        {
+            Enabled = true;
+        }
     }
+
+    private static string Command => $"\"{Environment.ProcessPath}\"";
 
     public static bool Enabled
     {
@@ -28,7 +38,7 @@ public static class Startup
             using var key = Registry.CurrentUser.CreateSubKey(RunKey);
             if (value)
             {
-                key.SetValue(Name, $"\"{Environment.ProcessPath}\"");
+                key.SetValue(Name, Command);
             }
             else
             {

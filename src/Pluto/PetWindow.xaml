@@ -141,7 +141,16 @@
                         Click="OnSettingsClick"
                         ToolTipService.ToolTip="Settings"
                         AutomationProperties.Name="Settings">
-                        <FontIcon Glyph="&#xE713;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Grid>
+                            <FontIcon Glyph="&#xE713;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <InfoBadge
+                                Margin="0,-6,-6,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource AttentionDotInfoBadgeStyle}"
+                                Visibility="{x:Bind local:Ui.Shown(ViewModel.Update.IsReady), Mode=OneWay}"
+                                AutomationProperties.Name="An update is ready" />
+                        </Grid>
                     </Button>
                 </Grid>
 

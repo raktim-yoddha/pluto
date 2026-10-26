@@ -57,6 +57,17 @@
                         <TextBlock Margin="0,0,0,4" FontFamily="{ThemeResource PlutoDisplayFont}" FontSize="28" FontWeight="SemiBold" Text="General" />
 
                         <InfoBar
+                            Title="{x:Bind local:Ui.ReadyTitle(ViewModel.Update.Version), Mode=OneWay}"
+                            Message="Restart Pluto to start using it. Quitting Pluto also puts it in place."
+                            IsOpen="{x:Bind ViewModel.Update.IsReady, Mode=OneWay}"
+                            IsClosable="True"
+                            Severity="Success">
+                            <InfoBar.ActionButton>
+                                <Button Content="Restart now" Click="OnRestartToUpdate" />
+                            </InfoBar.ActionButton>
+                        </InfoBar>
+
+                        <InfoBar
                             IsOpen="{x:Bind local:Ui.HasText(ViewModel.Notice), Mode=OneWay}"
                             Message="{x:Bind ViewModel.Notice, Mode=OneWay}"
                             Severity="Informational"
@@ -315,7 +326,20 @@
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             TextWrapping="Wrap"
                             Text="A small friend at the top of your screen that keeps an eye on every coding agent on your PC, and on today's list." />
-                        <Button Content="Quit Pluto" Click="OnQuit" />
+                        <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Updates" />
+                        <local:SettingCard Glyph="&#xE895;" Header="Pluto updates" Description="{x:Bind ViewModel.Update.Status, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ProgressRing Width="18" Height="18" IsActive="{x:Bind ViewModel.Update.IsBusy, Mode=OneWay}" />
+                                <Button Content="Restart to update" Style="{StaticResource AccentButtonStyle}" Click="OnRestartToUpdate" Visibility="{x:Bind local:Ui.Shown(ViewModel.Update.IsReady), Mode=OneWay}" />
+                                <Button Content="Check now" Click="OnCheckUpdates" IsEnabled="{x:Bind local:Ui.Not(ViewModel.Update.IsBusy), Mode=OneWay}" />
+                                <Button Content="Releases" Click="OnOpenReleases" />
+                            </StackPanel>
+                        </local:SettingCard>
+                        <local:SettingCard Glyph="&#xE7E7;" Header="Check for updates automatically" Description="Soon after Pluto starts and every few hours; new versions download in the background">
+                            <ToggleSwitch MinWidth="0" IsOn="{x:Bind ViewModel.AutoUpdate, Mode=TwoWay}" OnContent="" OffContent="" AutomationProperties.Name="Check for updates automatically" />
+                        </local:SettingCard>
+
+                        <Button Margin="0,12,0,0" Content="Quit Pluto" Click="OnQuit" />
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

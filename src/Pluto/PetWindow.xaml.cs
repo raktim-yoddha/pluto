@@ -1008,7 +1008,7 @@ public sealed partial class PetWindow : Window
         var settings = new MenuFlyoutItem { Text = "Settings", Icon = new FontIcon { Glyph = "" } };
         settings.Click += (_, _) => OpenSettings();
         var quit = new MenuFlyoutItem { Text = "Quit Pluto", Icon = new FontIcon { Glyph = "" } };
-        quit.Click += (_, _) => Application.Current.Exit();
+        quit.Click += (_, _) => App.Instance.Quit();
         var menu = new MenuFlyout { ShouldConstrainToRootBounds = false, Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft };
         menu.Items.Add(settings);
         menu.Items.Add(new MenuFlyoutSeparator());

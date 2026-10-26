@@ -109,8 +109,15 @@ access except Hiveory's link on 127.0.0.1.
 
 ## Install
 
-Download `Pluto-<version>-win-x64.zip` from [Releases](https://github.com/raktim-yoddha/pluto/releases/latest),
-unzip it anywhere and run `Pluto.exe`. It is self-contained: nothing else to install.
+From [Releases](https://github.com/raktim-yoddha/pluto/releases/latest) (Windows 10/11, x64; nothing else to install):
+
+- **Pluto-Setup.exe**: one click installs Pluto for you (no admin), adds it to the Start menu and Apps, and starts it.
+- **Pluto-Portable.zip**: unzip anywhere and run `Pluto.exe`; nothing is installed.
+
+**Updates:** both look for a new version soon after Pluto starts and every few hours (Settings › About › Check for
+updates automatically). A new version downloads in the background; then a note drops from the notch, the gear in the
+list gets a dot, and Settings shows a banner with "Restart now". It starts with the next restart either way.
+Uninstalling (Settings › Apps) also takes Pluto's hooks out of your agents' configs.
 
 ## Build
 
@@ -125,7 +132,8 @@ or PowerShell:
 
 ```powershell
 dotnet test tests/Pluto.Tests   # the tests
-pwsh scripts/publish.ps1         # out/Pluto-win-x64.zip, self-contained (the NativeAOT relay needs the VS C++ workload)
+pwsh scripts/pack.ps1 -Version 0.2.0   # out/Releases: Setup.exe, portable zip, update packages (needs `dotnet tool install -g vpk`;
+                                       # the NativeAOT relay needs the VS C++ workload)
 ```
 
 Releases follow [Semantic Versioning](https://semver.org); see [CHANGELOG.md](CHANGELOG.md).

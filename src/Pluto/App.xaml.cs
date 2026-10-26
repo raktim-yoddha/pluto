@@ -11,6 +11,11 @@ public partial class App : Application
     private PetWindow? _window;
     private PetViewModel? _viewModel;
 
+    /// <summary>Pluto's own updates.</summary>
+    internal Updater? Updater { get; private set; }
+
+    internal static App Instance => (App)Current;
+
     public App()
     {
         InitializeComponent();
@@ -38,11 +43,19 @@ public partial class App : Application
                 ui.TryEnqueue(Rebuild); // after the Settings change that asked for it has finished
             }
         };
+        Updater = new Updater(_viewModel, ui);
         Show(new PetWindow(_viewModel));
         if (Environment.GetCommandLineArgs().Contains("--settings"))
         {
             _window?.OpenSettings(); // "Pluto --settings": straight to Settings (a Start menu shortcut can use it)
         }
+    }
+
+    /// <summary>Quits Pluto; a downloaded update goes in place quietly, for the next start.</summary>
+    internal void Quit()
+    {
+        Updater?.ApplyOnExit();
+        Exit();
     }
 
     /// <summary>The pet's window; closing the one on show quits Pluto.</summary>
