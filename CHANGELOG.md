@@ -3,10 +3,13 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
-## 0.2.2 — 2026-10-26 — Clicks work again, and pointing is precise
+## 0.2.3 — 2026-10-26 — Pointing is precise
+
+- Pluto reacts only when the pointer is on it: it no longer pops or takes clicks from a distance.
+
+## 0.2.2 — 2026-10-26 — Clicks work again
 
 - Clicking Pluto opens the list again (0.2.1 ignored clicks).
-- Pluto reacts only when the pointer is on it: it no longer pops or takes clicks from a distance.
 
 ## 0.2.1 — 2026-10-26 — Acrylic notch, depth on every theme, steadier dragging
 
