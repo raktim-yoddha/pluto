@@ -150,8 +150,11 @@ public sealed partial class PetViewModel : ObservableObject
 
     public ObservableCollection<AgentToggle> Agents { get; }
 
-    /// <summary>Settings › Sound: one per moment.</summary>
-    public IReadOnlyList<SoundSlot> Sounds { get; }
+    /// <summary>
+    /// Settings › Sound: one per moment. A real list: a collection expression typed as an interface is a compiler-made
+    /// type that WinRT can't hand to XAML, and binding it crashed Settings.
+    /// </summary>
+    public List<SoundSlot> Sounds { get; }
 
     public PetSettings Settings => _pet.Settings;
 
@@ -195,23 +198,6 @@ public sealed partial class PetViewModel : ObservableObject
             }
         }
     }
-
-    /// <summary>Settings › Theme: 0 = Windows, 1 = Black, 2 = White.</summary>
-    public int ThemeChoice
-    {
-        get => (int)_pet.Settings.Theme;
-        set
-        {
-            if (value != (int)_pet.Settings.Theme && Enum.IsDefined((PlutoTheme)value))
-            {
-                _pet.Update(s => s with { Theme = (PlutoTheme)value });
-                OnPropertyChanged(nameof(ThemeChoice));
-                OnPropertyChanged(nameof(Theme));
-            }
-        }
-    }
-
-    public PlutoTheme Theme => _pet.Settings.Theme;
 
     /// <summary>Settings › Eyes: 0 = dots, 1 = ovals.</summary>
     public int EyesChoice

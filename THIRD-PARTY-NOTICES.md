@@ -9,8 +9,6 @@ Pluto adapts small parts of these projects (MIT unless noted):
 - Agent marks in `src/Pluto/Assets/Agents`, copied from Hiveory: LobeHub Icons
   (https://github.com/lobehub/lobe-icons, MIT) and official GitHub organization avatars. Each mark remains its
   owner's trademark and is used only to identify that agent.
-- Doto (https://github.com/oliverlalan/Doto), the dot-matrix font of the Black and White themes, in
-  `src/Pluto/Assets/Fonts`: SIL Open Font License 1.1, full text in `src/Pluto/Assets/Fonts/OFL.txt`.
 - Mithu AI Companion (https://github.com/Srinath0369/Mithu-AI-Companion): the session state
   machine and short activity texts (src/Pluto.Core/Agents/Tracker.cs, HookEvent.cs).
 

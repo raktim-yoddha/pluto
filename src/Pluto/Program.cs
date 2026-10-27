@@ -18,6 +18,11 @@ public static class Program
             .OnBeforeUninstallFastCallback(_ => Forget())
             .Run();
 
+        if (!WindowsAppRuntime.Start())
+        {
+            return;
+        }
+
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Application.Start(p =>
         {

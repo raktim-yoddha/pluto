@@ -344,4 +344,13 @@ internal static partial class Native
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool IsIconic(nint hwnd);
+
+    /// <summary>A plain Windows question box, for before WinUI is running. True on OK.</summary>
+    public static bool Ask(string text) => MessageBoxW(0, text, "Pluto", 0x41 /* MB_OKCANCEL | MB_ICONINFORMATION */) == 1;
+
+    /// <summary>A plain Windows message box, for before WinUI is running.</summary>
+    public static void Tell(string text) => MessageBoxW(0, text, "Pluto", 0x30 /* MB_ICONWARNING */);
+
+    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int MessageBoxW(nint owner, string text, string caption, uint type);
 }

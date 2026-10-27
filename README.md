@@ -5,14 +5,15 @@ your PC: Claude Code (also in the Claude app and VS Code), Codex, Gemini CLI, Cu
 terminal or editor, and every agent in [Hiveory](https://github.com/raktim-yoddha/hiveory) with its pet name,
 Workspace and Worktree. It peeks out when one finishes or needs you.
 
-Native Windows app: WinUI 3 (Windows App SDK) on .NET 10, a notch drawn and animated on Windows' compositor, native
-menus and lists, a NativeAOT hook relay. No Electron, no browser engine.
+Native Windows app: WinUI 3 (Windows App SDK), compiled ahead of time to one native exe (NativeAOT, no .NET install),
+a notch drawn and animated on Windows' compositor, native menus and lists, a NativeAOT hook relay. No Electron, no
+browser engine. It runs on Windows' shared Windows App Runtime, part of Windows 11; a PC without it gets it once, from
+Microsoft, when Pluto first starts and you say yes.
 
 ## Using it
 
-Pick a look in Settings › Theme: **Windows** (the default: your light or dark mode and your accent), **Black**
-(true black, white ink, dot-matrix headings) or **White** (its inverse). In Black and White the only colour is a red
-dot when an agent needs you. Settings also picks the **size** (Small, Medium, Large) and the **eyes** (dots or ovals).
+Pluto looks like Windows: Windows' own acrylic, light or dark as Windows is set, with your accent. Settings picks
+the **size** (Small, Medium, Large) and the **eyes** (dots or ovals).
 
 | You | Pluto |
 |---|---|
@@ -45,7 +46,7 @@ folder). One volume for all.
 **Floating capsule:** lit from above, with a soft rim that runs light to dark; it fades away as the capsule opens into
 the list. In the notch Pluto stays one solid colour, like a hardware notch.
 
-**Settings** (a Windows Settings–style window that stays on top with Pluto): theme, where Pluto lives (top edge or
+**Settings** (a Windows Settings–style window that stays on top with Pluto): where Pluto lives (top edge or
 floating), size, eyes, the agents to watch, Hiveory, sound, start with Windows, To Do and History.
 
 **Always on top:** Pluto and its Settings go back on top whenever another window comes to the front, full-screen
@@ -88,7 +89,7 @@ agent hook ──stdin──▶ pluto-hook.exe ──named pipe (this user only)
   the display's frame rate without resizing the window. The face (`BotFace.cs`) blinks, breathes, hops and looks at
   your cursor with composition animations. `Chime.cs` makes Pluto's sounds on the fly.
   `SettingsWindow` is a Mica window with the system title bar and Windows Settings cards (`SettingCard`).
-  `Themes.cs` holds the three looks as theme-resource overrides on each window's root.
+  `Themes.cs` holds the few colours the compositor draws itself, light and dark.
 - `src/Pluto.Core/Todos` — the To Do: `TodoStore` (the day, rollover into History, the options; saved to
   `%LOCALAPPDATA%\Pluto\todos.json`) and `TodoViewModel`.
 

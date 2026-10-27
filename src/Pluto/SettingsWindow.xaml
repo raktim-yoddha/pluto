@@ -6,7 +6,7 @@
     xmlns:todos="using:Pluto.Todos"
     Title="Pluto settings">
 
-    <Grid x:Name="RootGrid">
+    <Grid x:Name="RootGrid" Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -74,13 +74,6 @@
                             CloseButtonClick="OnNoticeClosed" />
 
                         <TextBlock Style="{StaticResource SettingsSectionStyle}" Text="Appearance" />
-                        <local:SettingCard Glyph="&#xE790;" Header="Theme" Description="Windows follows your light or dark mode. Black and White are monochrome, set in dots.">
-                            <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.ThemeChoice, Mode=TwoWay}" AutomationProperties.Name="Theme">
-                                <x:String>Windows</x:String>
-                                <x:String>Black</x:String>
-                                <x:String>White</x:String>
-                            </ComboBox>
-                        </local:SettingCard>
                         <local:SettingCard Glyph="&#xE7C4;" Header="Where Pluto lives" Description="In a notch on the top edge, or floating anywhere. Drag it to move it.">
                             <ComboBox MinWidth="160" SelectedIndex="{x:Bind ViewModel.DockChoice, Mode=TwoWay}" AutomationProperties.Name="Where Pluto lives">
                                 <x:String>Top edge</x:String>

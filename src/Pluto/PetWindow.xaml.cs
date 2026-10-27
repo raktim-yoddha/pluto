@@ -69,7 +69,7 @@ public sealed partial class PetWindow : Window
         Native.SetHitArea(_hwnd, 0, 0, 0, 0);
         Native.KeepOnTop(_hwnd); // first, so Settings (kept later) sits above it
         BotFace.SetEyes(ViewModel.Eyes);
-        ApplyTheme(); // before anything is drawn; a theme change builds a new window (see Retire)
+        Paint(); // before anything is drawn
 
         var queue = DispatcherQueue;
         _settle = Timer(queue, 140, () => Arrange(jump: true)); // after a note fades out, go small
@@ -92,7 +92,7 @@ public sealed partial class PetWindow : Window
         {
             Native.MakePetWindow(_hwnd); // again once shown: WinUI sets the frame up late, after the constructor
             _surface = new NotchSurface(ShapeHost, Stage);
-            if (ViewModel.Theme == PlutoTheme.Windows && AcrylicBody.IsSupported)
+            if (AcrylicBody.IsSupported)
             {
                 _acrylic = new AcrylicBody(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>(), Root.ActualTheme == ElementTheme.Light);
             }
@@ -113,14 +113,8 @@ public sealed partial class PetWindow : Window
 
     public PetViewModel ViewModel { get; }
 
-    /// <summary>The Settings page on show, or null when Settings is closed (kept across a theme change).</summary>
-    public string? SettingsPage => _settings?.Page;
-
-    /// <summary>
-    /// Lets go of everything this window listens to and keeps on top, and closes its Settings. A theme change builds a
-    /// fresh window, because controls keep colours they already looked up and a live switch leaves them half-changed.
-    /// </summary>
-    public void Retire()
+    /// <summary>Lets go of everything this window listens to and keeps on top, and closes its Settings.</summary>
+    private void Retire()
     {
         _tick.Stop();
         _gaze.Stop();
@@ -139,22 +133,16 @@ public sealed partial class PetWindow : Window
     /// <summary>Shows the pet without taking focus from whatever you're typing in.</summary>
     public void ShowWithoutFocus() => AppWindow.Show(activateWindow: false);
 
-    // ── Theme ──────────────────────────────────────────────────────────────────────────────
-
-    private void ApplyTheme()
-    {
-        Themes.Apply(Root, ViewModel.Theme, background: false); // the window stays see-through; the body has the colour
-        Paint();
-    }
+    // ── Colours ──────────────────────────────────────────────────────────────────────────────
 
     private void Paint()
     {
-        var (ink, alert) = Themes.FaceColors(ViewModel.Theme, Root.ActualTheme);
+        var (ink, alert) = Themes.FaceColors(Root.ActualTheme);
         BotFace.Paint(ink, alert);
-        var body = Themes.SurfaceColors(ViewModel.Theme, Root.ActualTheme);
+        var body = Themes.SurfaceColors(Root.ActualTheme);
         _surface?.Paint(body, capsule: ViewModel.Dock == Dock.Floating, acrylic: _acrylic is not null);
         _acrylic?.Light(Root.ActualTheme == ElementTheme.Light);
-        _pill?.Paint(Themes.PillColor(ViewModel.Theme, Root.ActualTheme));
+        _pill?.Paint(Themes.PillColor(Root.ActualTheme));
     }
 
     // ── Shape and place ────────────────────────────────────────────────────────────────────
@@ -930,7 +918,7 @@ public sealed partial class PetWindow : Window
         if (_dragRow is { } card)
         {
             // Lifted, the task is a solid card a shade lighter than the body, so it covers the rows it passes over.
-            card.Background = new SolidColorBrush(Themes.SurfaceColors(ViewModel.Theme, Root.ActualTheme).Lift);
+            card.Background = new SolidColorBrush(Themes.SurfaceColors(Root.ActualTheme).Lift);
             card.CornerRadius = new CornerRadius(10);
         }
 

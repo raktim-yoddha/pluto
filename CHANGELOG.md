@@ -3,6 +3,14 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.3.0 — 2026-10-27 — Six times smaller, one Windows look, Settings fixed
+
+- Pluto-Setup.exe is 16 MB instead of 100 MB, and updates download about 5 MB: Pluto is now one native program on
+  Windows' shared Windows App Runtime (part of Windows 11), without its own copy of .NET or AI libraries it never used.
+  A PC without the runtime gets it once from Microsoft, the first time Pluto starts and you say yes.
+- Pluto has one look, Windows' own acrylic, light or dark as Windows is set; the Black and White themes are gone.
+- Opening Settings no longer makes Pluto crash.
+
 ## 0.2.4 — 2026-10-27 — Calm, reliable docking and undocking
 
 - Sticking Pluto to the top edge or pulling it away never makes it vanish or leave stray edges for a moment.

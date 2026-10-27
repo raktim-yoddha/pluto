@@ -19,7 +19,7 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        UnhandledException += (_, e) => Log.Write("Unhandled", e.Exception);
+        UnhandledException += (_, e) => Log.Write($"Unhandled ({e.Message}) at {e.Exception.StackTrace}", e.Exception);
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -36,13 +36,6 @@ public partial class App : Application
         _pet = new Pet(action => ui.TryEnqueue(() => action()));
         _pet.Start();
         _viewModel = new PetViewModel(_pet);
-        _viewModel.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(PetViewModel.Theme))
-            {
-                ui.TryEnqueue(Rebuild); // after the Settings change that asked for it has finished
-            }
-        };
         Updater = new Updater(_viewModel, ui);
         Show(new PetWindow(_viewModel));
         if (Environment.GetCommandLineArgs().Contains("--settings"))
@@ -71,26 +64,5 @@ public partial class App : Application
             }
         };
         window.ShowWithoutFocus();
-    }
-
-    /// <summary>
-    /// A new theme: a fresh pet window (and Settings, on the same page, if it was open), every colour looked up anew.
-    /// Repainting the windows in place left controls with some of the old theme's colours.
-    /// </summary>
-    private void Rebuild()
-    {
-        if (_window is not { } old || _viewModel is null)
-        {
-            return;
-        }
-
-        var page = old.SettingsPage;
-        old.Retire();
-        Show(new PetWindow(_viewModel));
-        old.Close();
-        if (page is not null)
-        {
-            _window?.OpenSettings(page);
-        }
     }
 }

@@ -20,7 +20,7 @@ public sealed partial class SettingsWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(Bar);
         AppWindow.SetIcon(Ui.LogoPath);
-        ApplyTheme(); // before anything is drawn; a theme change rebuilds the window (see PetWindow.Retire)
+        SystemBackdrop = new MicaBackdrop();
         RootGrid.Loaded += (_, _) => Center();
     }
 
@@ -49,14 +49,6 @@ public sealed partial class SettingsWindow : Window
 
         Activate();
         Native.Focus(WinRT.Interop.WindowNative.GetWindowHandle(this));
-    }
-
-    /// <summary>Mica in the Windows theme; solid black or white in the monochrome ones.</summary>
-    private void ApplyTheme()
-    {
-        var theme = ViewModel.Theme;
-        SystemBackdrop = Themes.UsesBackdrop(theme) ? new MicaBackdrop() : null;
-        Themes.Apply(RootGrid, theme);
     }
 
     /// <summary>A comfortable size in DIPs, centred on the primary screen.</summary>

@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.2.4</Version>
+    <Version>0.3.0</Version>
     <Authors>Hiveory</Authors>
     <Product>Pluto</Product>
   </PropertyGroup>

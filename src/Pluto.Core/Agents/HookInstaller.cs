@@ -105,7 +105,7 @@ public static class HookInstaller
         foreach (var hook in agent.Hooks)
         {
             var list = ListOf(hooks, hook.Event);
-            list.Add(Entry(agent, hook, relay));
+            list.Add((JsonNode)Entry(agent, hook, relay));
         }
 
         if (agent.Style is HookStyle.Flat or HookStyle.Copilot)

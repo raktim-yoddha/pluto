@@ -4,9 +4,6 @@ using System.Text.Json.Serialization;
 
 namespace Pluto;
 
-/// <summary>Windows: the system's own look, light or dark. Black and White: monochrome, dot-matrix type.</summary>
-public enum PlutoTheme { Windows, Black, White }
-
 /// <summary>The face's eyes: a little grid of dots, or two soft ovals.</summary>
 public enum EyeStyle { Dots, Oval }
 
@@ -30,8 +27,6 @@ public sealed record PetSettings
 
     /// <summary>Show Hiveory's agents (its own "Let Pluto see your agents" switch must be on too). Off until chosen.</summary>
     public bool Hiveory { get; set; }
-
-    public PlutoTheme Theme { get; set; } = PlutoTheme.Windows;
 
     public NotchSize Size { get; set; } = NotchSize.Small;
 

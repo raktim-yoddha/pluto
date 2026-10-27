@@ -54,7 +54,7 @@
                 </Setter>
             </Style>
 
-            <!-- The font headings use; the theme swaps in the dot-matrix one for Black and White. -->
+            <!-- The font headings use. -->
             <FontFamily x:Key="PlutoDisplayFont">Segoe UI Variable Display</FontFamily>
 
             <!-- The list's section labels (All · Hiveory · To Do): native radio buttons drawn as small text; the chosen one
