@@ -345,6 +345,50 @@ internal static partial class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool IsIconic(nint hwnd);
 
+    /// <summary>
+    /// Pluto's logo (the exe's own icon) on the window and on its window class. The taskbar asks a new window for its
+    /// icon and, when the window is too busy to answer (Settings building its first frame), takes the class icon, which
+    /// WinUI leaves empty: Windows' blank app icon, kept for as long as the window was open.
+    /// </summary>
+    public static void UseLogo(nint hwnd)
+    {
+        var dpi = GetDpiForWindow(hwnd);
+        var big = LoadImageW(GetModuleHandleW(0), 32512 /* the app icon */, 1 /* IMAGE_ICON */, GetSystemMetricsForDpi(11 /* SM_CXICON */, dpi), GetSystemMetricsForDpi(12, dpi), 0);
+        var small = LoadImageW(GetModuleHandleW(0), 32512, 1, GetSystemMetricsForDpi(49 /* SM_CXSMICON */, dpi), GetSystemMetricsForDpi(50, dpi), 0);
+        SendMessageW(hwnd, 0x0080 /* WM_SETICON */, 1 /* ICON_BIG */, big);
+        SendMessageW(hwnd, 0x0080, 0 /* ICON_SMALL */, small);
+        SetClassLongPtrW(hwnd, -14 /* GCLP_HICON */, big);
+        SetClassLongPtrW(hwnd, -34 /* GCLP_HICONSM */, small);
+    }
+
+    /// <summary>
+    /// Hides a window from the screen while it still lays out and draws (or shows it again): a new WinUI window is black
+    /// until its first frame, and Settings takes a moment the first time.
+    /// </summary>
+    public static void Cloak(nint hwnd, bool cloaked)
+    {
+        var value = cloaked ? 1 : 0;
+        DwmSetWindowAttribute(hwnd, 13 /* DWMWA_CLOAK */, ref value, sizeof(int));
+    }
+
+    /// <summary>The window's DPI scale (1 at 100%), known before it is shown.</summary>
+    public static double Scale(nint hwnd) => GetDpiForWindow(hwnd) / 96.0;
+
+    [LibraryImport("user32.dll")]
+    private static partial uint GetDpiForWindow(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    private static partial int GetSystemMetricsForDpi(int index, uint dpi);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint LoadImageW(nint module, nint name, uint type, int width, int height, uint flags);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint SendMessageW(nint hwnd, uint message, nint wParam, nint lParam);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint SetClassLongPtrW(nint hwnd, int index, nint value);
+
     /// <summary>A plain Windows question box, for before WinUI is running. True on OK.</summary>
     public static bool Ask(string text) => MessageBoxW(0, text, "Pluto", 0x41 /* MB_OKCANCEL | MB_ICONINFORMATION */) == 1;
 

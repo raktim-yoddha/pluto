@@ -63,7 +63,7 @@ public sealed partial class PetWindow : Window
         AppWindow.SetPresenter(presenter);
         presenter.SetBorderAndTitleBar(true, false); // a border but no title bar; Windows draws none of it (MakePetWindow)
         AppWindow.IsShownInSwitchers = false;
-        AppWindow.SetIcon(Ui.LogoPath);
+        Native.UseLogo(_hwnd);
         AppWindow.Resize(new SizeInt32(1, 1));
         Native.MakePetWindow(_hwnd);
         Native.SetHitArea(_hwnd, 0, 0, 0, 0);

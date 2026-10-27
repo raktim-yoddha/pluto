@@ -19,9 +19,24 @@ public sealed partial class SettingsWindow : Window
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(Bar);
-        AppWindow.SetIcon(Ui.LogoPath);
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        Native.UseLogo(hwnd);
         SystemBackdrop = new MicaBackdrop();
-        RootGrid.Loaded += (_, _) => Center();
+        Center(Native.Scale(hwnd)); // in place before it shows, not moved there after
+
+        // Hidden until it is drawn, so it never shows black first. XAML's first frames reach the screen a few frames
+        // after it says they rendered (uncloaking at once still showed one or two black frames), hence the short wait.
+        Native.Cloak(hwnd, true);
+        RootGrid.Loaded += (_, _) => CompositionTarget.Rendered += Uncloak;
+        void Uncloak(object? sender, RenderedEventArgs e)
+        {
+            CompositionTarget.Rendered -= Uncloak;
+            var wait = DispatcherQueue.CreateTimer();
+            wait.Interval = TimeSpan.FromMilliseconds(80);
+            wait.IsRepeating = false;
+            wait.Tick += (_, _) => Native.Cloak(hwnd, false);
+            wait.Start();
+        }
     }
 
     /// <summary>The page on show ("general", "todo", "history", "about").</summary>
@@ -52,9 +67,8 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>A comfortable size in DIPs, centred on the primary screen.</summary>
-    private void Center()
+    private void Center(double scale)
     {
-        var scale = Content.XamlRoot.RasterizationScale;
         var work = DisplayArea.Primary.WorkArea;
         var size = new SizeInt32((int)(860 * scale), (int)(720 * scale));
         AppWindow.MoveAndResize(new RectInt32(work.X + ((work.Width - size.Width) / 2), work.Y + ((work.Height - size.Height) / 2), size.Width, size.Height));

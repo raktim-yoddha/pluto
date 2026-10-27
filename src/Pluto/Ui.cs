@@ -35,9 +35,6 @@ public static class Ui
     /// <summary>A done task's check, or an open task's empty circle (History).</summary>
     public static string CheckGlyph(bool done) => done ? "" : "";
 
-    /// <summary>Pluto's logo, for window icons.</summary>
-    public static string LogoPath { get; } = Path.Combine(AppContext.BaseDirectory, "Assets", "Logo", "pluto.ico");
-
     public static Microsoft.UI.Xaml.Media.ImageSource Logo { get; } =
         new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo", "pluto-256.png")));
 

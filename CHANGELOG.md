@@ -10,6 +10,8 @@ and fixes bump PATCH.
   A PC without the runtime gets it once from Microsoft, the first time Pluto starts and you say yes.
 - Pluto has one look, Windows' own acrylic, light or dark as Windows is set; the Black and White themes are gone.
 - Opening Settings no longer makes Pluto crash.
+- Settings opens in place, already drawn: no black window that jumps to the middle first.
+- Pluto's logo shows on the taskbar and in Windows' app lists, instead of a blank app icon.
 
 ## 0.2.4 — 2026-10-27 — Calm, reliable docking and undocking
 
