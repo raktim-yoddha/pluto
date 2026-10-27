@@ -7,7 +7,10 @@ using Windows.UI;
 
 namespace Pluto;
 
-/// <summary>How a change of shape moves: a spring for opening, a firmer one for closing, a bouncy one for the hover pop.</summary>
+/// <summary>
+/// How a change of shape moves: at once (Jump), or on a spring for opening, closing and the hover pop. Every spring is
+/// critically damped: it eases into place and never overshoots or bounces.
+/// </summary>
 internal enum Motion { Jump, Open, Close, Pop }
 
 /// <summary>
@@ -128,12 +131,12 @@ internal sealed class NotchSurface
     /// </summary>
     public const double ShadowReach = 7;
 
-    /// <summary>The springs for each kind of move (values from the Windows design team's guidance, tuned by eye).</summary>
+    /// <summary>The springs for each kind of move: damping 1 (no overshoot, no bounce), periods tuned by eye.</summary>
     public static (float Damping, int Period) SpringFor(Motion motion) => motion switch
     {
-        Motion.Open => (0.86f, 50),
-        Motion.Pop => (0.75f, 44),
-        _ => (0.95f, 44),
+        Motion.Open => (1f, 48),
+        Motion.Pop => (1f, 32),
+        _ => (1f, 42),
     };
 
     /// <summary>The window's size (DIPs), so the shadow's shape covers all of it.</summary>

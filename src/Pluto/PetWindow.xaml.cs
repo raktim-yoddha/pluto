@@ -45,7 +45,7 @@ public sealed partial class PetWindow : Window
     private bool _syncingTabs;
     private bool _arrangeQueued;
     private (int X, int Y) _pressCursor;
-    private PointInt32 _pressWindow;
+    private bool _settling;
 
     public PetWindow(PetViewModel viewModel)
     {
@@ -92,7 +92,6 @@ public sealed partial class PetWindow : Window
         {
             Native.MakePetWindow(_hwnd); // again once shown: WinUI sets the frame up late, after the constructor
             _surface = new NotchSurface(ShapeHost, Stage);
-            _surface.Frame(new Vector2((float)Placement.FrameWidth, (float)Placement.FrameHeight));
             if (ViewModel.Theme == PlutoTheme.Windows && AcrylicBody.IsSupported)
             {
                 _acrylic = new AcrylicBody(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>(), Root.ActualTheme == ElementTheme.Light);
@@ -256,17 +255,20 @@ public sealed partial class PetWindow : Window
         _layout = layout;
         Place(layout);
 
+        // The window is the whole screen and stays put; it moves only when the screen changes (another monitor, the
+        // taskbar moved), and then the body is simply there too.
         var moved = layout.Window != _window;
         if (moved)
         {
             _window = layout.Window;
             AppWindow.MoveAndResize(new RectInt32(_window.X, _window.Y, _window.Width, _window.Height));
+            _surface.Frame(new Vector2((float)layout.Width, (float)layout.Height));
         }
 
         var flare = notch ? Placement.Flare(ViewModel.Size) : 0;
         _surface.Shape(flare, scale);
         _surface.ShowRim(look != Look.List);
-        _acrylic?.Shape(flare, scale, new Vector2((float)Placement.FrameWidth, (float)Placement.FrameHeight));
+        _acrylic?.Shape(flare, scale, new Vector2((float)layout.Width, (float)layout.Height));
         var target = layout.For(look);
         if (_hover && look is Look.Tucked or Look.Face)
         {
@@ -280,9 +282,15 @@ public sealed partial class PetWindow : Window
             : _shown == Look.List && look != Look.List ? Motion.Close
             : look == Look.List ? Motion.Open
             : Motion.Pop;
+        if (_settling)
+        {
+            motion = Motion.Jump; // just dropped: body and content land in their spot in the same frame
+            _settling = false;
+        }
+
         if (moved)
         {
-            motion = Motion.Jump; // Pluto moved (dropped somewhere new, another screen): it is simply there
+            motion = Motion.Jump; // another screen: it is simply there
         }
 
         if (look == Look.Note && _shown != Look.Note)
@@ -346,11 +354,12 @@ public sealed partial class PetWindow : Window
     }
 
     /// <summary>Puts each look's content in its spot, at the chosen size.</summary>
-    private void Place(Layout layout)
+    private void Place(Layout layout, double dx = 0, double dy = 0)
     {
         var k = layout.Zoom;
-        Center(TuckedFace, layout.Small, 44 * k, 20 * k, k);
-        Center(SoloFace, layout.Small, 48 * k, 38 * k, k);
+        var small = layout.Small with { X = layout.Small.X + dx, Y = layout.Small.Y + dy };
+        Center(TuckedFace, small, 44 * k, 20 * k, k);
+        Center(SoloFace, small, 48 * k, 38 * k, k);
 
         var kn = layout.NoteZoom;
         NoteLayer.Width = layout.Note.Width;
@@ -363,11 +372,11 @@ public sealed partial class PetWindow : Window
         NoteTitle.FontSize = 14 * kn;
         NoteText.FontSize = 12 * kn;
         NoteIcon.Width = NoteIcon.Height = 20 * kn;
-        Canvas.SetLeft(NoteLayer, layout.Note.X);
-        Canvas.SetTop(NoteLayer, layout.Note.Y);
+        Canvas.SetLeft(NoteLayer, layout.Note.X + dx);
+        Canvas.SetTop(NoteLayer, layout.Note.Y + dy);
 
-        Canvas.SetLeft(ListLayer, layout.List.X);
-        Canvas.SetTop(ListLayer, layout.List.Y);
+        Canvas.SetLeft(ListLayer, layout.List.X + dx);
+        Canvas.SetTop(ListLayer, layout.List.Y + dy);
     }
 
     private static void Center(BotFace face, Area area, double width, double height, double zoom)
@@ -405,7 +414,6 @@ public sealed partial class PetWindow : Window
 
         _pressed = true;
         _pressCursor = Native.Cursor();
-        _pressWindow = AppWindow.Position;
         Root.CapturePointer(e.Pointer);
     }
 
@@ -423,36 +431,50 @@ public sealed partial class PetWindow : Window
             return;
         }
 
-        if (!_dragging)
+        if (!_dragging && _layout is not null)
         {
-            // Picked up: a plain little pill while it moves, no other animation. From here it follows the cursor every
-            // frame until the button is really let go; pointer events can stop arriving when a window moves fast under
-            // the cursor, which used to drop it halfway.
+            // Picked up: a plain little pill while it moves, no other animation. The window stays where it is (it is the
+            // whole screen); only the body and its content follow the cursor, every frame, until the button is really
+            // let go.
             _dragging = true;
             _hover = false;
+            _dragFrom = _layout.For(ViewModel.Look);
+            _dragArea = _dragFrom;
             _surface?.Detach();
-            _acrylic?.Shape(0, Root.XamlRoot.RasterizationScale, new Vector2((float)Placement.FrameWidth, (float)Placement.FrameHeight));
+            _acrylic?.Shape(0, Root.XamlRoot.RasterizationScale, new Vector2((float)_layout.Width, (float)_layout.Height));
             TuckedFace.Scale = SoloFace.Scale = Vector3.One;
             CompositionTarget.Rendering += OnDragFrame;
         }
     }
 
+    private Area _dragFrom;
+    private Area _dragArea;
+
     private void OnDragFrame(object? sender, object e)
     {
-        FollowCursor();
+        if (_layout is null || _surface is null || Root.XamlRoot is null)
+        {
+            return;
+        }
+
+        // Where the body is now: where it was picked up, moved as far as the cursor has, kept on the screen.
+        var scale = Root.XamlRoot.RasterizationScale;
+        var (cx, cy) = Native.Cursor();
+        var x = Math.Clamp(_dragFrom.X + ((cx - _pressCursor.X) / scale), 0, Math.Max(0, _layout.Width - _dragFrom.Width));
+        var y = Math.Clamp(_dragFrom.Y + ((cy - _pressCursor.Y) / scale), 0, Math.Max(0, _layout.Height - _dragFrom.Height));
+        _dragArea = _dragFrom with { X = x, Y = y };
+        _surface.MoveTo(_dragArea, _lastRadius, Motion.Jump);
+        _acrylic?.MoveTo(_dragArea, _lastRadius, Motion.Jump);
+        Place(_layout, x - _dragFrom.X, y - _dragFrom.Y); // by position: a transform on the content would also move its clip
+        _hit = _dragArea;
+        SetHit(_hit, 0, scale);
+
         if (!Native.PrimaryButtonDown())
         {
             CompositionTarget.Rendering -= OnDragFrame;
             _pressed = false;
             Dropped();
         }
-    }
-
-    /// <summary>Keeps the point you grabbed under the cursor.</summary>
-    private void FollowCursor()
-    {
-        var (cx, cy) = Native.Cursor();
-        AppWindow.Move(new PointInt32(_pressWindow.X + cx - _pressCursor.X, _pressWindow.Y + cy - _pressCursor.Y));
     }
 
     private void OnReleased(object sender, PointerRoutedEventArgs e)
@@ -482,8 +504,8 @@ public sealed partial class PetWindow : Window
     }
 
     /// <summary>
-    /// Near the top edge: a notch right there. Anywhere else: it floats where it is. Either way it is simply there, no
-    /// glide; an open list stays open (dragged by its heading).
+    /// Near the top edge: a notch right there. Anywhere else: it floats where it is. Body and content land in their spot
+    /// together; an open list stays open (dragged by its heading).
     /// </summary>
     private void Dropped()
     {
@@ -494,14 +516,11 @@ public sealed partial class PetWindow : Window
         }
 
         var scale = Root.XamlRoot.RasterizationScale;
-        var p = AppWindow.Position;
-        var here = new Box(p.X, p.Y, _window.Width, _window.Height);
-        var open = ViewModel.Look == Look.List;
-        var face = Placement.OnScreen(open ? _layout.List : _layout.Small, here, scale);
+        var face = Placement.OnScreen(_dragArea, _window, scale);
         var display = DisplayArea.GetFromPoint(new PointInt32(face.CenterX, face.Y), DisplayAreaFallback.Primary);
         var work = new Box(display.WorkArea.X, display.WorkArea.Y, display.WorkArea.Width, display.WorkArea.Height);
-        _window = here;
         _hover = false;
+        _settling = true; // the next arrangement puts body and content in their spot together (one jump, same frame)
         if (Placement.NearTop(face, work, scale))
         {
             ViewModel.NotchAt(face.CenterX);

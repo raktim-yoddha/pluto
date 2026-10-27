@@ -3,6 +3,12 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.2.4 — 2026-10-27 — Calm, reliable docking and undocking
+
+- Sticking Pluto to the top edge or pulling it away never makes it vanish or leave stray edges for a moment.
+- No more bouncing: every move eases into place without overshooting.
+- While you drag Pluto, its face stays with it.
+
 ## 0.2.3 — 2026-10-26 — Pointing is precise
 
 - Pluto reacts only when the pointer is on it: it no longer pops or takes clicks from a distance.

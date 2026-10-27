@@ -36,15 +36,16 @@ public readonly record struct Area(double X, double Y, double Width, double Heig
 }
 
 /// <summary>
-/// One arrangement of the pet: its window (physical pixels, the same size whatever it shows) and, inside it in DIPs,
-/// the shape for each look. Only the shape moves between looks, so opening and closing never resizes the window.
+/// One arrangement of the pet: its window (physical pixels: the whole screen it is on, see-through and click-through
+/// except on Pluto itself) and, inside it in DIPs, the shape for each look. The window never moves for a look, a drag
+/// or a dock: only the shape does, so the window and what is drawn in it can never be a frame apart.
 /// </summary>
 /// <param name="Small">Tucked in the notch, or the floating face.</param>
 /// <param name="Note">A moment's note.</param>
 /// <param name="List">The open list.</param>
 /// <param name="Zoom">How big the small looks are (1 for Small).</param>
 /// <param name="NoteZoom">How big the note is.</param>
-public sealed record Layout(Box Window, Area Small, Area Note, Area List, double Zoom, double NoteZoom)
+public sealed record Layout(Box Window, Area Small, Area Note, Area List, double Zoom, double NoteZoom, double Width, double Height)
 {
     /// <summary>The shape for <paramref name="look"/>.</summary>
     public Area For(Look look) => look switch { Look.Note => Note, Look.List => List, _ => Small };
@@ -55,11 +56,6 @@ public static class Placement
 {
     /// <summary>A pet dropped with its top this close to the top edge goes into the notch (DIPs).</summary>
     public const double SnapDistance = 56;
-
-    /// <summary>The window, in DIPs: room for the widest note and the tallest list, plus the notch's curved shoulders.</summary>
-    public const double FrameWidth = 440;
-
-    public const double FrameHeight = 560;
 
     /// <summary>The list's width and its tallest (DIPs).</summary>
     public const double ListWidth = 380;
@@ -78,48 +74,42 @@ public static class Placement
     public static double Flare(NotchSize size) => 9 * Zoom(size);
 
     /// <summary>
-    /// Lays the pet out on <paramref name="work"/> (the screen minus the taskbar). The notch hangs from the top edge,
-    /// centred on <paramref name="notchX"/> (the screen's middle when null) and pulled in from the sides only as far as it
-    /// must; a floating pet keeps its face where it was left (<paramref name="floatX"/>, <paramref name="floatY"/>: its
-    /// top-left corner), and the list opens from there, kept on screen.
+    /// Lays the pet out on <paramref name="work"/> (the screen minus the taskbar), which is also its window (a pixel
+    /// shorter, so Windows never takes it for a full-screen app). The notch hangs from the top edge, centred on
+    /// <paramref name="notchX"/> (the screen's middle when null) and pulled in from the sides only as far as it must; a
+    /// floating pet keeps its face where it was left (<paramref name="floatX"/>, <paramref name="floatY"/>: its top-left
+    /// corner, kept on screen), and the list opens from there, also kept on screen.
     /// </summary>
     public static Layout Lay(Dock dock, NotchSize size, Box work, double scale, int? notchX, int? floatX, int? floatY, double listHeight)
     {
         var k = Zoom(size);
         var kn = NoteZoom(size);
-        var w = Px(FrameWidth, scale);
-        var h = Px(FrameHeight, scale);
-        listHeight = Math.Min(listHeight, MaxListHeight);
+        var window = work with { Height = work.Height - 1 };
+        var w = window.Width / scale;
+        var h = window.Height / scale;
+        listHeight = Math.Min(listHeight, Math.Min(MaxListHeight, h));
         var note = (W: 320 * kn, H: 56 * kn);
 
         if (dock == Dock.Notch)
         {
-            var center = notchX ?? work.CenterX;
-            var window = new Box(Math.Clamp(center - (w / 2), work.X, Math.Max(work.X, work.Right - w)), work.Y, w, h);
-            var cx = (center - window.X) / scale;
+            var cx = ((notchX ?? work.CenterX) - window.X) / scale;
             var flare = Flare(size);
             Area Hang(double width, double height) =>
-                new(Math.Clamp(cx - (width / 2), flare, FrameWidth - flare - width), 0, width, height);
-            return new Layout(window, Hang(84 * k, 28 * k), Hang(note.W, note.H), Hang(ListWidth, listHeight), k, kn);
+                new(Math.Clamp(cx - (width / 2), flare, Math.Max(flare, w - flare - width)), 0, width, height);
+            return new Layout(window, Hang(84 * k, 28 * k), Hang(note.W, note.H), Hang(ListWidth, listHeight), k, kn, w, h);
         }
 
         var face = (W: 72 * k, H: 56 * k);
         var px = floatX ?? (work.CenterX - Px(face.W / 2, scale));
         var py = floatY ?? (work.Y + Px(120, scale));
-        var margin = Px(Margin, scale);
-        var frame = new Box(
-            Math.Clamp(px - margin, work.X, Math.Max(work.X, work.Right - w)),
-            Math.Clamp(py - margin, work.Y, Math.Max(work.Y, work.Bottom - h)),
-            w,
-            h);
         var small = new Area(
-            Math.Clamp((px - frame.X) / scale, Margin, FrameWidth - Margin - face.W),
-            Math.Clamp((py - frame.Y) / scale, Margin, FrameHeight - Margin - face.H),
+            Math.Clamp((px - window.X) / scale, Margin, Math.Max(Margin, w - Margin - face.W)),
+            Math.Clamp((py - window.Y) / scale, Margin, Math.Max(Margin, h - Margin - face.H)),
             face.W,
             face.H);
-        var noteArea = new Area(Math.Clamp(small.X, 0, FrameWidth - note.W), Math.Clamp(small.Y, 0, FrameHeight - note.H), note.W, note.H);
-        var list = new Area(Math.Clamp(small.X, 0, FrameWidth - ListWidth), Math.Clamp(small.Y, 0, FrameHeight - listHeight), ListWidth, listHeight);
-        return new Layout(frame, small, noteArea, list, k, kn);
+        var noteArea = new Area(Math.Clamp(small.X, 0, Math.Max(0, w - note.W)), Math.Clamp(small.Y, 0, Math.Max(0, h - note.H)), note.W, note.H);
+        var list = new Area(Math.Clamp(small.X, 0, Math.Max(0, w - ListWidth)), Math.Clamp(small.Y, 0, Math.Max(0, h - listHeight)), ListWidth, listHeight);
+        return new Layout(window, small, noteArea, list, k, kn, w, h);
     }
 
     /// <summary>The small shape a little bigger, for while the pointer is on it.</summary>

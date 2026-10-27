@@ -79,31 +79,29 @@ public class PlacementTests
     private static readonly Box Work = new(0, 0, 1920, 1080);
 
     [Fact]
-    public void The_notch_hangs_from_the_top_edge_wherever_it_was_put()
+    public void The_window_is_the_screen_and_the_notch_hangs_wherever_it_was_put()
     {
         var middle = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, null, null, null, 300);
-        Assert.Equal(new Box(740, 0, 440, 560), middle.Window);
-        Assert.Equal(new Area(178, 0, 84, 28), middle.Small);
-        Assert.Equal(220, middle.List.CenterX);
+        Assert.Equal(new Box(0, 0, 1920, 1079), middle.Window); // a pixel short of the screen: never "full screen"
+        Assert.Equal(new Area(918, 0, 84, 28), middle.Small);
+        Assert.Equal(960, middle.List.CenterX);
         Assert.Equal(0, middle.List.Y);
 
         var left = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, 400, null, null, 300);
-        Assert.Equal(180, left.Window.X);
-        Assert.Equal(400, left.Window.X + left.Small.CenterX);
+        Assert.Equal(middle.Window, left.Window); // moving the notch never moves the window
+        Assert.Equal(400, left.Small.CenterX);
     }
 
     [Fact]
     public void A_notch_near_a_side_stays_on_screen_with_its_shoulders()
     {
         var flare = Placement.Flare(NotchSize.Small);
-        var left = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, 40, null, null, 300);
-        Assert.Equal(0, left.Window.X);
+        var left = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, -40, null, null, 300);
         Assert.Equal(flare, left.Small.X);
         Assert.Equal(flare, left.List.X);
 
         var right = Placement.Lay(Dock.Notch, NotchSize.Small, Work, 1, 1900, null, null, 300);
-        Assert.Equal(1480, right.Window.X);
-        Assert.Equal(Placement.FrameWidth - flare, right.List.Right);
+        Assert.Equal(1920 - flare, right.List.Right);
     }
 
     [Fact]
@@ -118,18 +116,17 @@ public class PlacementTests
     }
 
     [Fact]
-    public void A_floating_list_opens_from_the_face_and_stays_on_screen()
+    public void A_floating_face_stays_where_it_was_left_and_its_list_stays_on_screen()
     {
-        var free = Placement.Lay(Dock.Floating, NotchSize.Small, Work, 1, null, 500, 300, 300);
-        Assert.Equal(new Box(490, 290, 440, 560), free.Window);
-        Assert.Equal(new Area(10, 10, 72, 56), free.Small);
+        var free = Placement.Lay(Dock.Floating, NotchSize.Small, Work, 1.25, null, 500, 300, 300);
+        Assert.Equal(new Box(0, 0, 1920, 1079), free.Window);
+        Assert.Equal(new Area(400, 240, 72, 56), free.Small); // 500 px, 300 px at 125 %
         Assert.Equal(free.Small.X, free.List.X);
 
-        var corner = Placement.Lay(Dock.Floating, NotchSize.Small, Work, 1, null, 1880, 1060, 300);
-        Assert.Equal(new Box(1480, 520, 440, 560), corner.Window);
-        Assert.True(corner.Window.X + corner.Small.Right <= Work.Right);
-        Assert.True(corner.Window.Y + corner.Small.Bottom <= Work.Bottom);
-        Assert.True(corner.List.Right <= Placement.FrameWidth && corner.List.Bottom <= Placement.FrameHeight);
+        var corner = Placement.Lay(Dock.Floating, NotchSize.Small, Work, 1, null, 5000, 5000, 300);
+        Assert.Equal(free.Window, corner.Window);
+        Assert.True(corner.Small.Right <= corner.Width - Placement.Margin && corner.Small.Bottom <= corner.Height - Placement.Margin);
+        Assert.True(corner.List.Right <= corner.Width && corner.List.Bottom <= corner.Height);
     }
 
     [Fact]
