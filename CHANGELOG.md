@@ -3,6 +3,13 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.3.1 — 2026-10-28 — Every status shows, Pluto stays in sight
+
+- Every status note shows the moment it happens. When several come at once, they show one after another, and none are
+  lost (before, the newest replaced the rest, and only one change per Hiveory update was shown).
+- When Windows keeps Pluto from staying on top of other windows, Pluto keeps asking until it is in front again; it
+  could stay hidden behind full-size windows after installing.
+
 ## 0.3.0 — 2026-10-27 — Six times smaller, one Windows look, Settings fixed
 
 - Pluto-Setup.exe is 16 MB instead of 100 MB, and updates download about 5 MB: Pluto is now one native program on

@@ -54,6 +54,7 @@ public sealed partial class PetViewModel : ObservableObject
     private readonly Pet _pet;
     private readonly Func<DateTimeOffset> _now;
     private DateTimeOffset _noteUntil;
+    private readonly Queue<PendingNote> _waiting = [];
     private DateTimeOffset _happyUntil;
     private bool _listOpen;
 
@@ -91,16 +92,7 @@ public sealed partial class PetViewModel : ObservableObject
     }
 
     /// <summary>A note about Pluto itself (a new version is ready), shown like an agent's, unless the list is open.</summary>
-    public void Announce(string title, string text)
-    {
-        (NoteTitle, NoteText, NoteIcon, NoteMood) = (title, text, "pluto", Mood.Happy);
-        if (!_listOpen)
-        {
-            _noteUntil = _now() + NoteFor;
-        }
-
-        Refresh();
-    }
+    public void Announce(string title, string text) => Note(new(Moment.None, title, text, "pluto", Mood.Happy));
 
     [ObservableProperty]
     public partial Look Look { get; private set; }
@@ -292,6 +284,12 @@ public sealed partial class PetViewModel : ObservableObject
     public void Refresh()
     {
         var now = _now();
+        if (!_listOpen && now >= _noteUntil && _waiting.TryDequeue(out var next))
+        {
+            Show(next); // the note on show is over: the next one in line (checked on every change and once a second)
+            return;
+        }
+
         var rows = _pet.Rows();
         var headline = Board.Headline(rows);
         Look = _listOpen ? Look.List
@@ -336,7 +334,8 @@ public sealed partial class PetViewModel : ObservableObject
     public void ToggleList()
     {
         _listOpen = !_listOpen;
-        _noteUntil = default; // opening the list answers the note
+        _noteUntil = default; // opening the list answers the note, and the ones waiting: the list shows it all
+        _waiting.Clear();
         Refresh();
     }
 
@@ -386,38 +385,63 @@ public sealed partial class PetViewModel : ObservableObject
     /// <summary>An agent started, finished, stopped or needs you: one note, a sound, then small again.</summary>
     private void OnChanged(Moment moment, string who, bool inHiveory)
     {
-        if (moment is Moment.Started or Moment.Finished or Moment.NeedsYou or Moment.Failed)
+        if (moment is not (Moment.Started or Moment.Finished or Moment.NeedsYou or Moment.Failed))
         {
-            var now = _now();
-            var row = _pet.Rows().FirstOrDefault(r => r.Title == who);
-            (NoteTitle, NoteMood) = moment switch
-            {
-                Moment.NeedsYou => ($"{who} needs you", Mood.NeedsYou),
-                Moment.Finished => ($"{who} is done", Mood.Happy),
-                Moment.Failed => ($"{who} stopped", Mood.NeedsYou),
-                _ => ($"{who} is working", Mood.Working),
-            };
-            NoteText = moment switch
-            {
-                Moment.Failed => row?.Activity is { Length: > 0 } a ? a : "Hit an error",
-                _ => row?.Activity is { Length: > 0 } a ? a : row?.Place ?? string.Empty,
-            };
-            NoteIcon = row?.Icon ?? string.Empty;
-            if (moment == Moment.Finished)
-            {
-                _happyUntil = now.AddSeconds(3);
-            }
-
-            if (!_listOpen)
-            {
-                _noteUntil = now + NoteFor;
-            }
-
             Refresh();
-            MomentHappened?.Invoke(moment);
             return;
         }
 
-        Refresh();
+        var row = _pet.Rows().FirstOrDefault(r => r.Title == who);
+        var (title, mood) = moment switch
+        {
+            Moment.NeedsYou => ($"{who} needs you", Mood.NeedsYou),
+            Moment.Finished => ($"{who} is done", Mood.Happy),
+            Moment.Failed => ($"{who} stopped", Mood.NeedsYou),
+            _ => ($"{who} is working", Mood.Working),
+        };
+        var text = moment switch
+        {
+            Moment.Failed => row?.Activity is { Length: > 0 } a ? a : "Hit an error",
+            _ => row?.Activity is { Length: > 0 } a ? a : row?.Place ?? string.Empty,
+        };
+        Note(new(moment, title, text, row?.Icon ?? string.Empty, mood));
     }
+
+    /// <summary>
+    /// Shows a note at once, or, while another is on show, right after it (and the ones before it): news that arrives
+    /// together is shown one by one, never dropped. The list being open shows none, so nothing waits then.
+    /// </summary>
+    private void Note(PendingNote note)
+    {
+        if (!_listOpen && _now() < _noteUntil)
+        {
+            _waiting.Enqueue(note);
+            return;
+        }
+
+        Show(note);
+    }
+
+    private void Show(PendingNote note)
+    {
+        var now = _now();
+        (NoteTitle, NoteText, NoteIcon, NoteMood) = (note.Title, note.Text, note.Icon, note.Mood);
+        if (note.Moment == Moment.Finished)
+        {
+            _happyUntil = now.AddSeconds(3);
+        }
+
+        if (!_listOpen)
+        {
+            _noteUntil = now + NoteFor;
+        }
+
+        Refresh();
+        if (note.Moment != Moment.None)
+        {
+            MomentHappened?.Invoke(note.Moment);
+        }
+    }
+
+    private sealed record PendingNote(Moment Moment, string Title, string Text, string Icon, Mood Mood);
 }

@@ -161,11 +161,13 @@ public sealed class Pet : IDisposable
         Changed?.Invoke(moment, AgentCatalog.Name(e.Agent), e.HiveoryInstance is not null);
     }
 
-    /// <summary>A Hiveory agent that finished or now needs you is a moment too; when it finished is kept for the list.</summary>
+    /// <summary>
+    /// A Hiveory agent that started, finished or now needs you is a moment too, each one of them (several can change in
+    /// one update; whoever needs you goes first). When it finished is kept for the list.
+    /// </summary>
     private void OnHiveory(IReadOnlyList<HiveoryAgent> agents)
     {
-        var moment = Moment.None;
-        var who = string.Empty;
+        var moments = new List<(Moment Moment, string Who)>();
         var now = DateTimeOffset.Now;
         foreach (var a in agents)
         {
@@ -176,28 +178,30 @@ public sealed class Pet : IDisposable
 
             if (a.State == PetState.NeedsYou)
             {
-                (moment, who) = (Moment.NeedsYou, a.Name);
+                moments.Insert(0, (Moment.NeedsYou, a.Name));
             }
             else if (a.State == PetState.Idle && before == PetState.Working)
             {
                 _hiveoryDone[a.Id] = now;
-                if (moment == Moment.None)
-                {
-                    (moment, who) = (Moment.Finished, a.Name);
-                }
+                moments.Add((Moment.Finished, a.Name));
             }
             else if (a.State == PetState.Working)
             {
                 _hiveoryDone.Remove(a.Id);
-                if (moment == Moment.None)
-                {
-                    (moment, who) = (Moment.Started, a.Name);
-                }
+                moments.Add((Moment.Started, a.Name));
             }
         }
 
         _hiveoryBefore = agents.ToDictionary(a => a.Id, a => a.State);
-        Changed?.Invoke(moment, who, true);
+        if (moments.Count == 0)
+        {
+            Changed?.Invoke(Moment.None, string.Empty, true);
+        }
+
+        foreach (var (moment, who) in moments)
+        {
+            Changed?.Invoke(moment, who, true);
+        }
     }
 
     /// <summary>

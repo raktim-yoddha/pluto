@@ -126,6 +126,30 @@ internal static partial class Native
         Raise();
     }
 
+    /// <summary>Windows really has the window on top (WS_EX_TOPMOST), not just asked to.</summary>
+    public static bool IsTopmost(nint hwnd) => (GetWindowLongPtrW(hwnd, ExStyle) & 0x8 /* WS_EX_TOPMOST */) != 0;
+
+    /// <summary>The program of the window in front ("Discord"), for the log.</summary>
+    public static string ForegroundApp()
+    {
+        _ = GetWindowThreadProcessId(GetForegroundWindow(), out var pid);
+        try
+        {
+            using var process = Process.GetProcessById((int)pid);
+            return process.ProcessName;
+        }
+        catch (ArgumentException)
+        {
+            return "?";
+        }
+    }
+
+    [LibraryImport("user32.dll")]
+    private static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    private static partial uint GetWindowThreadProcessId(nint hwnd, out uint pid);
+
     /// <summary>Stops keeping <paramref name="hwnd"/> on top (it closed).</summary>
     public static void LetGo(nint hwnd) => OnTop.Remove(hwnd);
 

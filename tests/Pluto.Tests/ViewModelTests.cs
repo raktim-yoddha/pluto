@@ -60,6 +60,41 @@ public class ViewModelTests
     }
 
     [Fact]
+    public void News_shows_at_once_and_news_arriving_together_waits_its_turn_without_being_lost()
+    {
+        var (pet, vm) = Make();
+        var moments = new List<Moment>();
+        vm.MomentHappened += moments.Add;
+
+        Hook(pet, """{"hook_event_name":"UserPromptSubmit","session_id":"a","cwd":"C:/code/shop"}""");
+        Hook(pet, """{"hook_event_name":"PermissionRequest","session_id":"b","cwd":"C:/code/blog"}""");
+        Assert.Equal("Claude Code is working", vm.NoteTitle); // the first, straight away
+        Assert.Equal([Moment.Started], moments); // the second's sound comes with its note
+
+        _now += TimeSpan.FromSeconds(1);
+        vm.Refresh();
+        Assert.Equal("Claude Code is working", vm.NoteTitle); // its full time on show
+
+        _now += PetViewModel.NoteFor;
+        vm.Refresh();
+        Assert.Equal(Look.Note, vm.Look);
+        Assert.Equal("Claude Code needs you", vm.NoteTitle); // then the one that waited
+        Assert.Equal([Moment.Started, Moment.NeedsYou], moments);
+
+        _now += PetViewModel.NoteFor;
+        vm.Refresh();
+        Assert.Equal(Look.Tucked, vm.Look);
+
+        Hook(pet, """{"hook_event_name":"Stop","session_id":"a","cwd":"C:/code/shop"}""");
+        Hook(pet, """{"hook_event_name":"Stop","session_id":"b","cwd":"C:/code/blog"}""");
+        vm.ToggleList();
+        vm.PointerLeft();
+        _now += PetViewModel.NoteFor;
+        vm.Refresh();
+        Assert.Equal(Look.Tucked, vm.Look); // opening the list answered what was waiting
+    }
+
+    [Fact]
     public void Size_eyes_volume_and_sounds_are_settings()
     {
         var (_, vm) = Make();

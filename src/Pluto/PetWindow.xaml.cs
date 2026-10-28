@@ -46,6 +46,7 @@ public sealed partial class PetWindow : Window
     private bool _arrangeQueued;
     private (int X, int Y) _pressCursor;
     private bool _settling;
+    private bool _offTop;
 
     public PetWindow(PetViewModel viewModel)
     {
@@ -79,6 +80,7 @@ public sealed partial class PetWindow : Window
             ViewModel.Refresh();
             ViewModel.Todo.Tick(); // a new day, when its time comes
             Native.Raise(); // back on top of anything that pushed in without taking the foreground
+            KeepTopmost();
             FoldWhenLeftAlone();
         });
         _gaze = Timer(queue, 90, Gaze);
@@ -1027,6 +1029,40 @@ public sealed partial class PetWindow : Window
         spring.DampingRatio = damping;
         spring.Period = TimeSpan.FromMilliseconds(42);
         return spring;
+    }
+
+    /// <summary>
+    /// Once in a while Windows ignores Pluto's "stay on top" for minutes on end (after installing, with a game and a
+    /// Discord stream open; the cause isn't known yet), and Pluto sat hidden behind full-size windows. While that lasts,
+    /// it asks again the other way round (the presenter's always-on-top off and on) every second, and the log says what
+    /// was in front, to find the cause.
+    /// </summary>
+    private void KeepTopmost()
+    {
+        if (Native.IsTopmost(_hwnd))
+        {
+            if (_offTop)
+            {
+                _offTop = false;
+                Log.Write("Back on top");
+            }
+
+            return;
+        }
+
+        if (!_offTop)
+        {
+            _offTop = true;
+            Log.Write($"Windows kept Pluto off the top (in front: {Native.ForegroundApp()})");
+        }
+
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.IsAlwaysOnTop = false;
+            presenter.IsAlwaysOnTop = true;
+        }
+
+        Native.Raise();
     }
 
     // ── Actions ────────────────────────────────────────────────────────────────────────────
