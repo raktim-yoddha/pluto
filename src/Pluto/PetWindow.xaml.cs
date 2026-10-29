@@ -984,7 +984,6 @@ public sealed partial class PetWindow : Window
             return;
         }
 
-        _slots = null;
         var (from, to) = (_from, _to);
         var id = ViewModel.Todo.Items[from].Id;
         var lifted = slots[from].Visual;
@@ -996,11 +995,22 @@ public sealed partial class PetWindow : Window
             ShowTools(row, false);
         }
 
-        // Into its slot, then the new order: the rows already sit where it puts them, so nothing jumps.
+        // Into its slot, then the new order: the rows already sit where it puts them, so nothing jumps. The rows that
+        // glided aside join the batch too: let go fast and they are still moving, and stopping a running animation writes
+        // its last value back after the reset below, leaving that row drawn a slot off (a gap, two rows on top of each
+        // other). The move waits until every row has stopped, and no new move starts before (_slots is held till then).
         var compositor = lifted.Compositor;
         var batch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
         lifted.StartAnimation("Translation", Spring3(new Vector3(0, (float)offset, 0), 0.9f));
         lifted.StartAnimation("Scale", Spring3(Vector3.One, 0.9f));
+        for (var i = 0; i < slots.Count; i++)
+        {
+            if (i != from)
+            {
+                slots[i].Visual.StartAnimation("Translation", Spring3(new Vector3(0, (float)_shift[i], 0), 0.86f));
+            }
+        }
+
         batch.End();
         batch.Completed += (_, _) =>
         {
@@ -1019,6 +1029,7 @@ public sealed partial class PetWindow : Window
                 Canvas.SetZIndex(r, 0);
             }
 
+            _slots = null;
             ViewModel.Todo.MoveTo(id, to);
         };
     }

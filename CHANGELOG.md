@@ -3,6 +3,11 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.3.3 — 2026-10-30 — No more gaps in the to-do list
+
+- Letting go of a task quickly after dragging it no longer leaves an empty gap in the list with two tasks drawn on top
+  of each other. A new drag waits until the last one has settled.
+
 ## 0.3.2 — 2026-10-29 — To-dos you can rename and rearrange
 
 - Pressing Enter after renaming a task no longer freezes Pluto and closes it (the same could happen after checking,
