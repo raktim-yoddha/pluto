@@ -40,12 +40,12 @@ public class HookEventTests
     public void Every_agents_event_names_map_onto_claude_codes(string raw, string canonical) => Assert.Equal(canonical, HookEvents.Canonical(raw));
 
     [Fact]
-    public void Gemini_tool_calls_and_copilot_args_are_read_where_they_are()
+    public void Antigravity_tool_calls_and_copilot_args_are_read_where_they_are()
     {
-        var gemini = Parse("""{"agent":"gemini","event":"PreToolUse","payload":{"conversationId":"c1","workspacePaths":["C:\\p\\web"],"toolCall":{"name":"run_shell_command","args":{"CommandLine":"npm test"}}}}""")!;
-        Assert.Equal("c1", gemini.SessionId);
-        Assert.Equal("web", gemini.Project);
-        Assert.Equal("Running npm test", gemini.Activity);
+        var agy = Parse("""{"agent":"antigravity","event":"PreToolUse","payload":{"conversationId":"c1","workspacePaths":["C:\\p\\web"],"toolCall":{"name":"run_command","args":{"CommandLine":"npm test","Cwd":"C:\\p\\web"}}}}""")!;
+        Assert.Equal("c1", agy.SessionId);
+        Assert.Equal("web", agy.Project);
+        Assert.Equal("Running npm test", agy.Activity);
 
         var copilot = Parse("""{"agent":"copilot","event":"preToolUse","payload":{"sessionId":"x","toolName":"view","toolArgs":"{\"path\":\"C:\\\\a\\\\README.md\"}"}}""")!;
         Assert.Equal("PreToolUse", copilot.Name);
@@ -154,10 +154,15 @@ public class HookInstallerTests
     [Fact]
     public void Each_agent_gets_the_command_its_shell_can_run()
     {
-        var gemini = HookInstaller.WithOurs([], Agent("gemini"), Relay);
-        var hook = gemini["hooks"]!["BeforeTool"]![0]!;
-        Assert.Equal("*", hook["matcher"]!.GetValue<string>());
-        Assert.Equal($"& '{Relay}' --agent gemini PreToolUse", hook["hooks"]![0]!["command"]!.GetValue<string>());
+        // Antigravity: our own named entry; tool events in {matcher, hooks}, the rest bare, each naming its event.
+        var others = JsonNode.Parse("""{"orca-status":{"Stop":[{"type":"command","command":"orca.cmd"}]}}""")!.AsObject();
+        var agy = HookInstaller.WithOurs(others, Agent("antigravity"), Relay);
+        var tool = agy["pluto"]!["PreToolUse"]![0]!;
+        Assert.Equal("*", tool["matcher"]!.GetValue<string>());
+        Assert.Equal($"{Relay} --agent antigravity PreToolUse", tool["hooks"]![0]!["command"]!.GetValue<string>());
+        Assert.Equal($"{Relay} --agent antigravity UserPromptSubmit", agy["pluto"]!["PreInvocation"]![0]!["command"]!.GetValue<string>());
+        Assert.Equal(10, agy["pluto"]!["Stop"]![0]!["timeout"]!.GetValue<int>());
+        Assert.Equal(others.ToJsonString(), HookInstaller.WithoutOurs(agy, Agent("antigravity")).ToJsonString());
 
         var cursor = HookInstaller.WithOurs([], Agent("cursor"), @"C:\Program Files\Pet\pluto-hook.exe");
         Assert.Equal(1, cursor["version"]!.GetValue<int>());
@@ -202,6 +207,14 @@ public class HookInstallerTests
             HookInstaller.Install(Agent("copilot"), home, Relay);
             HookInstaller.Uninstall(Agent("copilot"), home);
             Assert.False(File.Exists(HookInstaller.ConfigPath(Agent("copilot"), home))); // that file was ours alone
+
+            // Found by its own folders: Antigravity's config folder (.gemini) is no sign it is installed.
+            Directory.CreateDirectory(Path.Combine(home, ".gemini"));
+            Assert.False(HookInstaller.Detected(Agent("antigravity"), home));
+            Directory.CreateDirectory(Path.Combine(home, ".gemini", "antigravity-cli"));
+            Assert.True(HookInstaller.Detected(Agent("antigravity"), home));
+            Assert.True(HookInstaller.Detected(Agent("claude"), home));
+            Assert.False(HookInstaller.Detected(Agent("cursor"), home));
         }
         finally
         {

@@ -34,15 +34,20 @@ internal sealed partial class AcrylicBody : IDisposable
     {
         _window = window;
         _catcher.Changed += OnAcrylic;
-        _config.Theme = light ? SystemBackdropTheme.Light : SystemBackdropTheme.Dark;
+        Light(light);
         _controller.AddSystemBackdropTarget(_catcher);
         _controller.SetSystemBackdropConfiguration(_config);
     }
 
     public static bool IsSupported => DesktopAcrylicController.IsSupported();
 
-    /// <summary>Follows Windows' light or dark mode.</summary>
-    public void Light(bool light) => _config.Theme = light ? SystemBackdropTheme.Light : SystemBackdropTheme.Dark;
+    /// <summary>Follows Windows' light or dark mode, in Pluto's gray (<see cref="Themes.Glass"/>).</summary>
+    public void Light(bool light)
+    {
+        _config.Theme = light ? SystemBackdropTheme.Light : SystemBackdropTheme.Dark;
+        (_controller.TintColor, _controller.TintOpacity, _controller.LuminosityOpacity) = Themes.Glass(light);
+        _controller.FallbackColor = _controller.TintColor;
+    }
 
     /// <summary>The window's size and the shoulders (physical pixels per DIP in <paramref name="scale"/>).</summary>
     public void Shape(double flare, double scale, Vector2 windowDips)

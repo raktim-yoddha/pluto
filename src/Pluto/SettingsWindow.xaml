@@ -100,7 +100,12 @@
                             Style="{StaticResource CaptionTextBlockStyle}"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             TextWrapping="Wrap"
-                            Text="Every coding agent shows up while it runs, including sessions inside the Claude and Codex apps. Turn one on here to also hear when it starts, finishes or needs you." />
+                            Text="Every coding agent shows up while it runs, including sessions inside the Claude and Codex apps. The ones found on this PC are listed here: turn one on to also hear when it starts, finishes or needs you." />
+                        <TextBlock
+                            Margin="1,0,0,8"
+                            Style="{StaticResource BodyTextBlockStyle}"
+                            Visibility="{x:Bind local:Ui.Shown(ViewModel.NoAgentsFound)}"
+                            Text="No coding agents found on this PC yet. Once you install one (Claude Code, Codex, Antigravity, Cursor or Copilot CLI) and use it, it shows up here." />
                         <ItemsControl ItemsSource="{x:Bind ViewModel.Agents}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>

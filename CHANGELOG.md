@@ -3,6 +3,15 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.4.0 — 2026-10-30 — Antigravity, and one steady gray
+
+- Settings › Agents to watch lists only the agents found on this PC, looked for again each time Settings opens.
+- Antigravity CLI joins Agents to watch (its hooks also cover the Antigravity app); Gemini CLI leaves it.
+- Pluto and Settings stay one neutral gray whether or not they have focus (before, Settings turned the wallpaper's
+  colour when focused and dark gray when not, and the pet took on the colour of what was behind it).
+- Settings no longer flickers where it overlaps Pluto: it now belongs to Pluto's window, so Windows keeps it just above
+  Pluto instead of the two swapping places every second.
+
 ## 0.3.3 — 2026-10-30 — No more gaps in the to-do list
 
 - Letting go of a task quickly after dragging it no longer leaves an empty gap in the list with two tasks drawn on top

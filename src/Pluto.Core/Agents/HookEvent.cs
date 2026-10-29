@@ -152,7 +152,7 @@ public static class HookEvents
         };
     }
 
-    /// <summary>Copilot: toolArgs (object or its JSON text). Gemini: toolCall.args. Everyone else: tool_input.</summary>
+    /// <summary>Copilot: toolArgs (object or its JSON text). Antigravity: toolCall.args. Everyone else: tool_input.</summary>
     private static JsonObject? ToolInput(JsonObject payload)
     {
         if (payload["tool_input"] is JsonObject input)

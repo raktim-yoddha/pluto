@@ -9,6 +9,8 @@ internal static partial class Native
     private const int ExStyle = -20;
     private const long ToolWindow = 0x80; // not in Alt+Tab or the taskbar
     private const long NoActivate = 0x08000000; // clicking the pet never takes focus from what you type in
+    private const long AppWindow = 0x40000; // a taskbar button, owned or not
+    private const int Owner = -8; // GWLP_HWNDPARENT: a top-level window's owner
     private const int NcRendering = 2; // DWMWA_NCRENDERING_POLICY
     private const int CornerPreference = 33; // DWMWA_WINDOW_CORNER_PREFERENCE
     private const int DoNotRound = 1;
@@ -110,9 +112,8 @@ internal static partial class Native
 
     /// <summary>
     /// Keeps <paramref name="hwnd"/> above everything, full-screen apps included: whenever another window comes to the
-    /// front (a game, a window that made itself topmost), it goes back on top without taking focus. Windows kept later
-    /// (Settings) go above earlier ones (the pet). A game in exclusive full screen draws past every window, so nothing can
-    /// show over it.
+    /// front (a game, a window that made itself topmost), it goes back on top without taking focus, its owned windows
+    /// (Settings) with it. A game in exclusive full screen draws past every window, so nothing can show over it.
     /// </summary>
     public static unsafe void KeepOnTop(nint hwnd)
     {
@@ -124,6 +125,18 @@ internal static partial class Native
         }
 
         Raise();
+    }
+
+    /// <summary>
+    /// Gives <paramref name="hwnd"/> (Settings) to <paramref name="owner"/> (the pet). Windows keeps an owned window just
+    /// above its owner, and topmost with it, so raising the pet takes Settings along in the same step. Raised one after
+    /// the other instead, the two swapped places for a frame every second, a flicker wherever they overlap. Call it
+    /// before the window first shows, so it keeps its taskbar button.
+    /// </summary>
+    public static void Own(nint hwnd, nint owner)
+    {
+        SetWindowLongPtrW(hwnd, ExStyle, (nint)(GetWindowLongPtrW(hwnd, ExStyle) | AppWindow));
+        SetWindowLongPtrW(hwnd, Owner, owner);
     }
 
     /// <summary>Windows really has the window on top (WS_EX_TOPMOST), not just asked to.</summary>

@@ -22,10 +22,8 @@ public sealed partial class AgentToggle(AgentSpec spec, PetViewModel owner) : Ob
 
     public string Name => Spec.Name;
 
-    /// <summary>"Not found on this PC", or what the hook covers.</summary>
-    public string Detail => HookInstaller.Detected(Spec, Pet.Home) || IsOn
-        ? Spec.Note ?? $"Adds a small hook to ~\\{Spec.ConfigFile}"
-        : "Not found on this PC";
+    /// <summary>What the hook covers.</summary>
+    public string Detail => Spec.Note ?? $"Adds a small hook to ~\\{Spec.ConfigFile}";
 
     public bool IsOn
     {
@@ -63,7 +61,6 @@ public sealed partial class PetViewModel : ObservableObject
         _pet = pet;
         _now = now ?? (() => DateTimeOffset.Now);
         Todo = todo ?? new TodoViewModel(new TodoStore(TodoStore.DefaultFile, _now), pet.Post);
-        Agents = [.. AgentCatalog.All.Select(a => new AgentToggle(a, this))];
         Sounds = [.. Enum.GetValues<SoundKind>().Select(k => new SoundSlot(k, pet))];
         _pet.Changed += OnChanged;
         _happyUntil = _now().AddSeconds(2); // hello
@@ -140,7 +137,14 @@ public sealed partial class PetViewModel : ObservableObject
     [ObservableProperty]
     public partial string? Notice { get; set; }
 
-    public ObservableCollection<AgentToggle> Agents { get; }
+    /// <summary>
+    /// Settings › Agents to watch: the agents found on this PC (and any whose hooks are on, so they can be turned off),
+    /// looked for again each time Settings opens. A real list, like <see cref="Sounds"/>.
+    /// </summary>
+    public List<AgentToggle> Agents =>
+        [.. AgentCatalog.All.Where(a => HookInstaller.Detected(a, Pet.Home) || HookInstaller.IsInstalled(a, Pet.Home)).Select(a => new AgentToggle(a, this))];
+
+    public bool NoAgentsFound => Agents.Count == 0;
 
     /// <summary>
     /// Settings › Sound: one per moment. A real list: a collection expression typed as an interface is a compiler-made

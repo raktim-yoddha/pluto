@@ -19,6 +19,14 @@ public static class Themes
         ? new(Rgb(0xF3, 0xF3, 0xF5), Rgb(0xFF, 0xFF, 0xFF), Rgb(0xEC, 0xEC, 0xF0), Rgb(0xCF, 0xCF, 0xD6))
         : new(Rgb(0x17, 0x17, 0x19), Rgb(0x20, 0x20, 0x24), Rgb(0x4A, 0x4A, 0x52), Rgb(0x26, 0x26, 0x2B));
 
+    /// <summary>
+    /// Pluto's glass (the pet's acrylic, Settings' Mica): one neutral gray, tinted strongly enough that what lies
+    /// behind (the wallpaper, a window) blurs through without colouring it, and the same with or without focus.
+    /// </summary>
+    public static (Color Tint, float Opacity, float Luminosity) Glass(bool light) => light
+        ? (Rgb(0xF3, 0xF3, 0xF3), 0.95f, 1f)
+        : (Rgb(0x2C, 0x2C, 0x2C), 0.95f, 1f);
+
     private static Color Rgb(byte r, byte g, byte b) => Color.FromArgb(255, r, g, b);
 
     /// <summary>The soft pill behind the chosen section: a whisper of ink on the body.</summary>

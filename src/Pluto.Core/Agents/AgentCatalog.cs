@@ -16,12 +16,21 @@ public enum HookStyle
 
     /// <summary>Copilot CLI: a file of our own, <c>{version: 1, hooks: {event: [{type, bash, powershell, timeoutSec}]}}</c>.</summary>
     Copilot,
+
+    /// <summary>
+    /// Antigravity: a named entry of our own, <c>{pluto: {event: [{type, command, timeout}]}}</c>; tool events wrap theirs
+    /// in <c>{matcher, hooks}</c>.
+    /// </summary>
+    Named,
 }
 
 /// <summary>One hook to add: the agent's own event name, the event the relay reports (when the payload lacks it), its timeout.</summary>
 public sealed record HookSpec(string Event, string? Said, int Timeout);
 
-/// <summary>An agent the pet can follow through its hooks.</summary>
+/// <summary>
+/// An agent the pet can follow through its hooks. <paramref name="Finds"/>: folders under the user's home that show it
+/// is on this PC (by default, its config folder).
+/// </summary>
 public sealed record AgentSpec(
     string Id,
     string Name,
@@ -31,7 +40,8 @@ public sealed record AgentSpec(
     IReadOnlyList<HookSpec> Hooks,
     bool Async = false,
     bool Matcher = false,
-    string? Note = null);
+    string? Note = null,
+    string[]? Finds = null);
 
 /// <summary>
 /// Every agent the pet knows. Config locations and formats follow coucou's installers (MIT,
@@ -57,13 +67,13 @@ public static partial class AgentCatalog
             new("PermissionRequest", null, 10), new("PostToolUse", null, 10), new("Stop", null, 10),
             new("SubagentStart", null, 10), new("SubagentStop", null, 10), new("Interrupt", null, 3), new("SessionEnd", null, 3),
         ], Note: "Codex runs new hooks once you trust them: type /hooks in Codex."),
-        new("gemini", "Gemini CLI", @".gemini\settings.json", HookShell.PowerShell, HookStyle.Groups,
+        // antigravity.google/docs/hooks: one hooks.json for the CLI (agy), the app and the IDE. Its payload names no
+        // event, so each hook says which it is. PreInvocation starts a turn, Stop ends it.
+        new("antigravity", "Antigravity CLI", @".gemini\config\hooks.json", HookShell.Cmd, HookStyle.Named,
         [
-            // Milliseconds. AfterModel is left out: it fires on every chunk of a reply.
-            new("SessionStart", "SessionStart", 10000), new("SessionEnd", "SessionEnd", 10000),
-            new("BeforeAgent", "UserPromptSubmit", 5000), new("BeforeTool", "PreToolUse", 5000),
-            new("AfterTool", "PostToolUse", 5000), new("Notification", "Notification", 5000), new("AfterAgent", "Stop", 5000),
-        ], Matcher: true),
+            new("SessionStart", "SessionStart", 10), new("PreInvocation", "UserPromptSubmit", 10), new("PreToolUse", "PreToolUse", 10),
+            new("PostToolUse", "PostToolUse", 10), new("Stop", "Stop", 10),
+        ], Note: "Also covers the Antigravity app.", Finds: [@".gemini\antigravity-cli", @".gemini\antigravity", @".gemini\antigravity-ide"]),
         new("cursor", "Cursor", @".cursor\hooks.json", HookShell.Cmd, HookStyle.Flat,
         [
             new("sessionStart", null, 0), new("sessionEnd", null, 0), new("beforeSubmitPrompt", null, 0),

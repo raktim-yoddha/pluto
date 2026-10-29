@@ -68,7 +68,7 @@ public sealed partial class PetWindow : Window
         AppWindow.Resize(new SizeInt32(1, 1));
         Native.MakePetWindow(_hwnd);
         Native.SetHitArea(_hwnd, 0, 0, 0, 0);
-        Native.KeepOnTop(_hwnd); // first, so Settings (kept later) sits above it
+        Native.KeepOnTop(_hwnd); // Settings rides along, as the pet's owned window
         BotFace.SetEyes(ViewModel.Eyes);
         Paint(); // before anything is drawn
 
@@ -1091,18 +1091,13 @@ public sealed partial class PetWindow : Window
             _settings.Page = page;
         }
 
-        var hwnd = WindowNative.GetWindowHandle(_settings);
-        _settings.Present();
         if (first)
         {
-            _settings.Closed += (_, _) =>
-            {
-                Native.LetGo(hwnd);
-                _settings = null;
-            };
-            Native.KeepOnTop(hwnd); // after the pet, so it is raised above it
-
+            Native.Own(WindowNative.GetWindowHandle(_settings), _hwnd); // just above the pet, raised with it
+            _settings.Closed += (_, _) => _settings = null;
         }
+
+        _settings.Present();
     }
 
     private void OnRowClick(object sender, ItemClickEventArgs e)

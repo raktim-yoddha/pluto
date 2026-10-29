@@ -22,7 +22,7 @@ public sealed partial class SettingsWindow : Window
         SetTitleBar(Bar);
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         Native.UseLogo(hwnd);
-        SystemBackdrop = new MicaBackdrop();
+        SystemBackdrop = new GrayBackdrop();
         Center(Native.Scale(hwnd)); // in place before it shows, not moved there after
 
         // Hidden until it is drawn, so it never shows black first. XAML's first frames reach the screen a few frames

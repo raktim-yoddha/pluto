@@ -20,9 +20,12 @@ public static class HookInstaller
 
     public static string ConfigPath(AgentSpec agent, string home) => Path.Combine(home, agent.ConfigFile);
 
-    /// <summary>The agent's config folder exists (it has been used on this PC).</summary>
+    /// <summary>The agent's folders exist (it has been used on this PC).</summary>
     public static bool Detected(AgentSpec agent, string home) =>
-        Directory.Exists(Path.Combine(home, agent.ConfigFile.Split('\\')[0]));
+        (agent.Finds ?? [agent.ConfigFile.Split('\\')[0]]).Any(f => Directory.Exists(Path.Combine(home, f)));
+
+    /// <summary>The name of our own entry in a <see cref="HookStyle.Named"/> config.</summary>
+    public const string EntryName = "pluto";
 
     public static bool IsInstalled(AgentSpec agent, string home)
     {
@@ -101,7 +104,7 @@ public static class HookInstaller
     public static JsonObject WithOurs(JsonObject config, AgentSpec agent, string relay)
     {
         var root = WithoutOurs(config, agent);
-        var hooks = HooksOf(root);
+        var hooks = agent.Style == HookStyle.Named ? (JsonObject)(root[EntryName] = new JsonObject()) : HooksOf(root);
         foreach (var hook in agent.Hooks)
         {
             var list = ListOf(hooks, hook.Event);
@@ -120,6 +123,12 @@ public static class HookInstaller
     public static JsonObject WithoutOurs(JsonObject config, AgentSpec agent)
     {
         var root = (JsonObject)config.DeepClone();
+        if (agent.Style == HookStyle.Named)
+        {
+            root.Remove(EntryName);
+            return root;
+        }
+
         if (root["hooks"] is null)
         {
             return root;
@@ -193,6 +202,11 @@ public static class HookInstaller
         var args = hook.Said is null ? $"--agent {agent.Id}" : $"--agent {agent.Id} {hook.Said}";
         switch (agent.Style)
         {
+            case HookStyle.Named:
+                var handler = new JsonObject { ["type"] = "command", ["command"] = Command(agent.Shell, relay, args), ["timeout"] = hook.Timeout };
+                return hook.Event.EndsWith("ToolUse", StringComparison.Ordinal)
+                    ? new JsonObject { ["matcher"] = "*", ["hooks"] = new JsonArray(handler) }
+                    : handler;
             case HookStyle.Flat:
                 return new JsonObject { ["command"] = Command(agent.Shell, relay, args) };
             case HookStyle.Copilot:
