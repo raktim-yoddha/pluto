@@ -139,26 +139,52 @@ public class TodoTests
     }
 
     [Fact]
-    public void The_list_keeps_its_rows_and_only_moves_or_replaces_what_changed()
+    public void The_list_keeps_its_rows_updating_them_in_place_and_only_moves_what_moved()
     {
         var vm = new TodoViewModel(new TodoStore(null, () => _now));
         vm.Add("One");
         vm.Add("Two");
         vm.Add("Three");
         var (one, two, three) = (vm.Items[0], vm.Items[1], vm.Items[2]);
+        var changed = new List<string?>();
+        two.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
         vm.Toggle(two.Id);
-        Assert.Same(one, vm.Items[0]);
-        Assert.NotSame(two, vm.Items[1]); // it changed, so it is a new row
-        Assert.True(vm.Items[1].Completed);
-        Assert.Same(three, vm.Items[2]);
+        vm.Edit(two.Id, "Two, renamed");
+        Assert.Equal([one, two, three], vm.Items); // the same rows: none swapped out from under a click or a key
+        Assert.True(two.Completed);
+        Assert.Equal("Two, renamed", two.Text);
+        Assert.Contains(nameof(TodoItemViewModel.Completed), changed);
+        Assert.Contains(nameof(TodoItemViewModel.Text), changed);
 
         vm.MoveTo(three.Id, 0);
-        Assert.Same(three, vm.Items[0]);
-        Assert.Same(one, vm.Items[1]);
+        Assert.Equal([three, one, two], vm.Items);
 
         vm.Delete(one.Id);
-        Assert.Equal([three.Id, two.Id], vm.Items.Select(i => i.Id));
+        Assert.Equal([three, two], vm.Items);
+
+        vm.StartNewDay();
+        var day = Assert.Single(vm.History);
+        vm.Add("Four");
+        vm.Toggle(vm.Items[0].Id);
+        Assert.Same(day, Assert.Single(vm.History)); // History is rebuilt only when it changes
+    }
+
+    [Fact]
+    public void The_list_changes_after_the_event_that_changed_it_once_per_burst()
+    {
+        var queued = new List<Action>();
+        var vm = new TodoViewModel(new TodoStore(null, () => _now), queued.Add);
+        queued.ForEach(a => a());
+        queued.Clear();
+
+        vm.Add("One");
+        vm.Add("Two");
+        Assert.Empty(vm.Items); // not inside the key or click that added them
+        Assert.Single(queued);
+
+        queued[0]();
+        Assert.Equal(["One", "Two"], vm.Items.Select(i => i.Text));
     }
 
     [Fact]

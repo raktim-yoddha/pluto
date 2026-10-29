@@ -3,6 +3,16 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.3.2 — 2026-10-29 — To-dos you can rename and rearrange
+
+- Pressing Enter after renaming a task no longer freezes Pluto and closes it (the same could happen after checking,
+  deleting or moving a task with the keyboard).
+- Dragging a task by its grip moves it again, all the way to the top or bottom of the list.
+- Double-clicking renames a task only on its words, not on the grip or the empty space beside them.
+- Settings › History: "Delete day" and "Copy unfinished to today" work every time (after the first change, they did
+  nothing), and checking a task no longer redraws History.
+- An unexpected error is written to the log instead of closing Pluto and Settings.
+
 ## 0.3.1 — 2026-10-28 — Every status shows, Pluto stays in sight
 
 - Every status note shows the moment it happens. When several come at once, they show one after another, and none are

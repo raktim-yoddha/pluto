@@ -362,9 +362,8 @@
                                     Tag="{x:Bind Id}"
                                     PointerEntered="OnTodoEnter"
                                     PointerExited="OnTodoExit"
-                                    DoubleTapped="OnTodoDoubleTapped"
                                     KeyDown="OnTodoKeyDown"
-                                    AutomationProperties.Name="{x:Bind Text}">
+                                    AutomationProperties.Name="{x:Bind Text, Mode=OneWay}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
@@ -380,9 +379,6 @@
                                         Background="Transparent"
                                         Tag="{x:Bind Id}"
                                         PointerPressed="OnGripPressed"
-                                        PointerMoved="OnGripMoved"
-                                        PointerReleased="OnGripReleased"
-                                        PointerCaptureLost="OnGripLost"
                                         AutomationProperties.Name="Move (Alt+Up or Alt+Down)">
                                         <FontIcon Glyph="&#xE76F;" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Opacity="0">
                                             <FontIcon.OpacityTransition>
@@ -395,16 +391,20 @@
                                         MinWidth="0"
                                         Padding="0"
                                         VerticalAlignment="Center"
-                                        IsChecked="{x:Bind Completed}"
+                                        IsChecked="{x:Bind Completed, Mode=OneWay}"
                                         Tag="{x:Bind Id}"
                                         Click="OnTodoChecked"
-                                        AutomationProperties.Name="{x:Bind Text}" />
+                                        AutomationProperties.Name="{x:Bind Text, Mode=OneWay}" />
+                                    <!-- Double-click the words themselves to rename (not the grip or the space beside them). -->
                                     <TextBlock
                                         Grid.Column="2"
+                                        HorizontalAlignment="Left"
                                         VerticalAlignment="Center"
-                                        Text="{x:Bind Text}"
-                                        Opacity="{x:Bind TextOpacity}"
-                                        TextDecorations="{x:Bind local:Ui.Strike(Struck)}"
+                                        Text="{x:Bind Text, Mode=OneWay}"
+                                        Tag="{x:Bind Id}"
+                                        DoubleTapped="OnTodoDoubleTapped"
+                                        Opacity="{x:Bind TextOpacity, Mode=OneWay}"
+                                        TextDecorations="{x:Bind local:Ui.Strike(Struck), Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis"
                                         MaxLines="2"
                                         TextWrapping="Wrap"
@@ -412,7 +412,7 @@
                                     <TextBox
                                         Grid.Column="2"
                                         VerticalAlignment="Center"
-                                        Text="{x:Bind Text}"
+                                        Text="{x:Bind Text, Mode=OneWay}"
                                         Tag="{x:Bind Id}"
                                         KeyDown="OnEditKeyDown"
                                         LostFocus="OnEditLostFocus"
@@ -421,7 +421,7 @@
                                     <TextBlock
                                         Grid.Column="3"
                                         VerticalAlignment="Center"
-                                        Text="{x:Bind CompletedAt}"
+                                        Text="{x:Bind CompletedAt, Mode=OneWay}"
                                         FontFamily="{ThemeResource PlutoDisplayFont}"
                                         FontSize="11"
                                         Foreground="{ThemeResource TextFillColorTertiaryBrush}" />

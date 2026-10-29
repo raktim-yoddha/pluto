@@ -773,9 +773,9 @@ public sealed partial class PetWindow : Window
 
     private void OnTodoDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
-        if (Item(sender) is { } item && e.OriginalSource is not CheckBox)
+        if (Item(sender) is { } item && ((FrameworkElement)sender).Parent is Grid row)
         {
-            StartEditing((Grid)sender, item);
+            StartEditing(row, item);
         }
     }
 
@@ -879,6 +879,8 @@ public sealed partial class PetWindow : Window
     // Moving a task: drag its grip. The task lifts and follows the pointer, the others glide aside on springs, and on
     // release it settles into its slot before the list takes the new order. Every movement is an explicit compositor
     // animation that is stopped and cleared before the order changes, so no row is ever left out of place.
+    // Inside the list the grip loses its pointer capture right after the press, so, like dragging Pluto itself, the
+    // drag reads the cursor every frame until the button is let go.
     private List<(UIElement Row, Microsoft.UI.Composition.Visual Visual, double Top, double Height)>? _slots;
     private double[] _shift = [];
     private Grid? _dragRow;
@@ -910,7 +912,7 @@ public sealed partial class PetWindow : Window
         _shift = new double[slots.Count];
         _from = _to = ViewModel.Todo.Items.IndexOf(item);
         _dragRow = grip.Parent as Grid;
-        _startY = e.GetCurrentPoint(TodoList).Position.Y;
+        _startY = Native.Cursor().Y;
         for (var i = 0; i < slots.Count; i++)
         {
             Canvas.SetZIndex(slots[i].Row, i == _from ? 1 : 0);
@@ -926,29 +928,38 @@ public sealed partial class PetWindow : Window
 
         lifted.Visual.CenterPoint = new Vector3(lifted.Row.ActualSize.X / 2, (float)(lifted.Height / 2), 0);
         lifted.Visual.StartAnimation("Scale", Spring3(new Vector3(1.025f, 1.025f, 1), 0.7f));
-        grip.CapturePointer(e.Pointer);
+        CompositionTarget.Rendering += OnGripFrame;
         e.Handled = true;
     }
 
-    private void OnGripMoved(object sender, PointerRoutedEventArgs e)
+    private void OnGripFrame(object? sender, object e)
     {
-        if (_slots is not { } slots)
+        if (_slots is not { } slots || Root.XamlRoot is null)
         {
+            CompositionTarget.Rendering -= OnGripFrame;
+            return;
+        }
+
+        if (!Native.PrimaryButtonDown())
+        {
+            CompositionTarget.Rendering -= OnGripFrame;
+            Drop();
             return;
         }
 
         var (_, visual, top, height) = slots[_from];
-        var dy = Math.Clamp(e.GetCurrentPoint(TodoList).Position.Y - _startY, -top, slots[^1].Top + slots[^1].Height - top - height);
+        var dy = Math.Clamp((Native.Cursor().Y - _startY) / Root.XamlRoot.RasterizationScale, -top, slots[^1].Top + slots[^1].Height - top - height);
         visual.StopAnimation("Translation");
         visual.Properties.InsertVector3("Translation", new Vector3(0, (float)dy, 0));
 
-        // The slot it is over: where its middle has passed the middle of a neighbour.
+        // The slot it is over: where its middle has reached the middle of a neighbour (reached, not passed: held at the
+        // list's edge, its middle is exactly the first or last row's).
         var middle = top + (height / 2) + dy;
         var to = _from;
         for (var i = 0; i < slots.Count; i++)
         {
             var center = slots[i].Top + (slots[i].Height / 2);
-            if ((i < _from && middle < center && to == _from) || (i > _from && middle > center))
+            if ((i < _from && middle <= center && to == _from) || (i > _from && middle >= center))
             {
                 to = i;
             }
@@ -964,17 +975,7 @@ public sealed partial class PetWindow : Window
                 slots[i].Visual.StartAnimation("Translation", Spring3(new Vector3(0, (float)shift, 0), 0.86f));
             }
         }
-
-        e.Handled = true;
     }
-
-    private void OnGripReleased(object sender, PointerRoutedEventArgs e)
-    {
-        ((UIElement)sender).ReleasePointerCapture(e.Pointer);
-        Drop();
-    }
-
-    private void OnGripLost(object sender, PointerRoutedEventArgs e) => Drop();
 
     private void Drop()
     {

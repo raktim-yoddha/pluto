@@ -34,6 +34,9 @@ public sealed class Pet : IDisposable
 
     public PetSettings Settings { get; private set; }
 
+    /// <summary>Runs <paramref name="action"/> on the UI thread, after whatever it is doing now.</summary>
+    public void Post(Action action) => _post(action);
+
     /// <summary>The Hiveory apps whose agents the pet follows right now.</summary>
     public IReadOnlyList<string> HiveoryApps => _link.Connected;
 

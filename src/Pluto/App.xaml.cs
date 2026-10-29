@@ -19,7 +19,11 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        UnhandledException += (_, e) => Log.Write($"Unhandled ({e.Message}) at {e.Exception.StackTrace}", e.Exception);
+        UnhandledException += (_, e) =>
+        {
+            Log.Write($"Unhandled ({e.Message}) at {e.Exception.StackTrace}", e.Exception);
+            e.Handled = true; // logged; one failed click or setting never takes Pluto (and Settings) down with it
+        };
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)

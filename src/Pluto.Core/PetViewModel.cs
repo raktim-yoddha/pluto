@@ -62,7 +62,7 @@ public sealed partial class PetViewModel : ObservableObject
     {
         _pet = pet;
         _now = now ?? (() => DateTimeOffset.Now);
-        Todo = todo ?? new TodoViewModel(new TodoStore(TodoStore.DefaultFile, _now));
+        Todo = todo ?? new TodoViewModel(new TodoStore(TodoStore.DefaultFile, _now), pet.Post);
         Agents = [.. AgentCatalog.All.Select(a => new AgentToggle(a, this))];
         Sounds = [.. Enum.GetValues<SoundKind>().Select(k => new SoundSlot(k, pet))];
         _pet.Changed += OnChanged;

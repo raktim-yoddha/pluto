@@ -6,6 +6,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Pluto.Todos;
 using Windows.Graphics;
 
 namespace Pluto;
@@ -95,19 +96,21 @@ public sealed partial class SettingsWindow : Window
         ClearFlyout.Hide();
     }
 
+    // A day's buttons sit in its Expander's content, where x:Bind values (like a Tag) are left empty once History has
+    // been rebuilt; the inherited DataContext is always the day.
     private void OnRestore(object sender, RoutedEventArgs e)
     {
-        if (((FrameworkElement)sender).Tag is string id)
+        if (((FrameworkElement)sender).DataContext is DayViewModel day)
         {
-            ViewModel.Todo.RestoreUnfinished(id);
+            ViewModel.Todo.RestoreUnfinished(day.Id);
         }
     }
 
     private void OnDeleteDay(object sender, RoutedEventArgs e)
     {
-        if (((FrameworkElement)sender).Tag is string id)
+        if (((FrameworkElement)sender).DataContext is DayViewModel day)
         {
-            ViewModel.Todo.DeleteDay(id);
+            ViewModel.Todo.DeleteDay(day.Id);
         }
     }
 

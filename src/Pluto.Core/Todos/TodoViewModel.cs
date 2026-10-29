@@ -6,10 +6,22 @@ namespace Pluto.Todos;
 /// <summary>A task as the list shows it.</summary>
 public sealed partial class TodoItemViewModel(TodoItem item, TodoViewModel owner) : ObservableObject
 {
-    /// <summary>The task as stored; a changed task gets a new view model.</summary>
-    internal TodoItem Item => item;
-
-    internal CompletedStyle Style { get; } = owner.CheckedStyle;
+    /// <summary>
+    /// The task as stored. A changed task (renamed, checked, restyled) updates this row in place: swapping the row out
+    /// would tear down the control you just used while it is still handling your key or click.
+    /// </summary>
+    internal TodoItem Item
+    {
+        get => item;
+        set
+        {
+            item = value;
+            foreach (var name in new[] { nameof(Text), nameof(Completed), nameof(CompletedAt), nameof(Struck), nameof(TextOpacity) })
+            {
+                OnPropertyChanged(name);
+            }
+        }
+    }
 
     public string Id { get; } = item.Id;
 
@@ -17,9 +29,9 @@ public sealed partial class TodoItemViewModel(TodoItem item, TodoViewModel owner
     [ObservableProperty]
     public partial bool IsEditing { get; set; }
 
-    public string Text { get; } = item.Text;
+    public string Text => item.Text;
 
-    public string CompletedAt { get; } = item.CompletedAt ?? string.Empty;
+    public string CompletedAt => item.CompletedAt ?? string.Empty;
 
     /// <summary>Checking it here checks it in the list (two-way with the check box).</summary>
     public bool Completed
@@ -44,6 +56,8 @@ public sealed partial class TodoItemViewModel(TodoItem item, TodoViewModel owner
 /// <summary>A past day in History.</summary>
 public sealed class DayViewModel(DayRecord record)
 {
+    internal DayRecord Record => record;
+
     public string Id => record.Id;
 
     public string Day => record.Day;
@@ -65,11 +79,18 @@ public sealed class DayViewModel(DayRecord record)
 public sealed partial class TodoViewModel : ObservableObject
 {
     private readonly TodoStore _store;
+    private readonly Action<Action> _post;
+    private CompletedStyle _style;
+    private bool _syncQueued;
 
-    public TodoViewModel(TodoStore store)
+    /// <param name="post">Runs an action on the UI thread after the current event (the pet's DispatcherQueue); the
+    /// lists change there, never inside the key or click handler of a row they remove or move.</param>
+    public TodoViewModel(TodoStore store, Action<Action>? post = null)
     {
         _store = store;
-        _store.Changed += Sync;
+        _post = post ?? (action => action());
+        _style = store.State.CheckedStyle;
+        _store.Changed += QueueSync;
         _store.Load();
     }
 
@@ -175,7 +196,7 @@ public sealed partial class TodoViewModel : ObservableObject
         }
         else
         {
-            Sync(); // put the list back as the store has it
+            QueueSync(); // put the list back as the store has it
         }
     }
 
@@ -192,12 +213,41 @@ public sealed partial class TodoViewModel : ObservableObject
     /// <summary>Called every so often: starts the new day when its time has come.</summary>
     public void Tick() => _store.RollOverIfDue();
 
-    /// <summary>Brings the lists up to date, moving and replacing only what changed so rows never flash.</summary>
+    /// <summary>Syncs once, after the event that changed the list (a burst of changes, like restoring a day, syncs once).</summary>
+    private void QueueSync()
+    {
+        if (!_syncQueued)
+        {
+            _syncQueued = true;
+            _post(() =>
+            {
+                _syncQueued = false;
+                Sync();
+            });
+        }
+    }
+
+    /// <summary>Brings the lists up to date: each task keeps its row (updated in place), and rows only move, come or go.</summary>
     private void Sync()
     {
         var state = _store.State;
+        var restyle = _style != state.CheckedStyle;
+        _style = state.CheckedStyle;
         var wanted = state.Todos
-            .Select(t => Items.FirstOrDefault(i => i.Item == t && i.Style == state.CheckedStyle) ?? new TodoItemViewModel(t, this))
+            .Select(t =>
+            {
+                if (Items.FirstOrDefault(i => i.Id == t.Id) is not { } row)
+                {
+                    return new TodoItemViewModel(t, this);
+                }
+
+                if (restyle || row.Item != t)
+                {
+                    row.Item = t;
+                }
+
+                return row;
+            })
             .ToList();
         for (var i = 0; i < wanted.Count; i++)
         {
@@ -222,10 +272,13 @@ public sealed partial class TodoViewModel : ObservableObject
             Items.RemoveAt(Items.Count - 1);
         }
 
-        History.Clear();
-        foreach (var d in state.History)
+        if (!History.Select(d => d.Record).SequenceEqual(state.History)) // checking a task leaves History (and Settings) alone
         {
-            History.Add(new DayViewModel(d));
+            History.Clear();
+            foreach (var d in state.History)
+            {
+                History.Add(new DayViewModel(d));
+            }
         }
 
         Done = state.Todos.Count(t => t.Completed);
