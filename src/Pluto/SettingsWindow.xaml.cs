@@ -56,16 +56,15 @@ public sealed partial class SettingsWindow : Window
 
     public string Version { get; } = "Version " + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.0");
 
-    /// <summary>Opens in front (restored if it was minimized) and asks for focus. It stays on top, like the pet.</summary>
+    /// <summary>
+    /// Opens in front (restored if it was minimized) and asks for focus. An ordinary window, not on top like the pet:
+    /// other windows can cover it, and only the pet stays above everything.
+    /// </summary>
     public void Present()
     {
-        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        if (AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter)
         {
-            presenter.IsAlwaysOnTop = true;
-            if (presenter.State == OverlappedPresenterState.Minimized)
-            {
-                presenter.Restore();
-            }
+            presenter.Restore();
         }
 
         Activate();

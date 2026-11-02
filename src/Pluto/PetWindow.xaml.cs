@@ -68,7 +68,7 @@ public sealed partial class PetWindow : Window
         AppWindow.Resize(new SizeInt32(1, 1));
         Native.MakePetWindow(_hwnd);
         Native.SetHitArea(_hwnd, 0, 0, 0, 0);
-        Native.KeepOnTop(_hwnd); // Settings rides along, as the pet's owned window
+        Native.KeepOnTop(_hwnd); // only the pet: Settings is an ordinary window
         BotFace.SetEyes(ViewModel.Eyes);
         Paint(); // before anything is drawn
 
@@ -1081,7 +1081,7 @@ public sealed partial class PetWindow : Window
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
 
-    /// <summary>One settings window, kept on top just above the pet; asking again brings it to the front.</summary>
+    /// <summary>One settings window, an ordinary one other windows can cover; asking again brings it to the front.</summary>
     public void OpenSettings(string? page = null)
     {
         var first = _settings is null;
@@ -1093,7 +1093,6 @@ public sealed partial class PetWindow : Window
 
         if (first)
         {
-            Native.Own(WindowNative.GetWindowHandle(_settings), _hwnd); // just above the pet, raised with it
             _settings.Closed += (_, _) => _settings = null;
         }
 

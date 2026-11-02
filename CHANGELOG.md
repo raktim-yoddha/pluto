@@ -7,6 +7,8 @@ and fixes bump PATCH.
 
 - Clicking Settings opens it again. Sometimes it opened invisible and stayed that way until Pluto restarted, so every
   later click seemed to do nothing.
+- Settings is an ordinary window again: other windows can cover it, and it no longer stays on top. Only Pluto itself
+  stays above everything.
 - Settings › History shows every task of each past day again, done or not: a green tick for done, a red cross for
   not done (each day's list was empty before). Copy any day's unfinished tasks to today from there.
 - Settings › History shows how much of the last 7 days' tasks you finished (today's list included), as a bar and a
