@@ -3,10 +3,12 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
-## 0.5.0 — 2026-11-02 — Settings opens every time, and a week at a glance
+## 0.5.0 — 2026-11-02 — Settings opens every time, History shows every task
 
 - Clicking Settings opens it again. Sometimes it opened invisible and stayed that way until Pluto restarted, so every
   later click seemed to do nothing.
+- Settings › History shows every task of each past day again, done or not: a green tick for done, a red cross for
+  not done (each day's list was empty before). Copy any day's unfinished tasks to today from there.
 - Settings › History shows how much of the last 7 days' tasks you finished (today's list included), as a bar and a
   percentage.
 - Settings › History › "Copy all unfinished to today" (Ctrl+Shift+R) brings every past day's open tasks back onto

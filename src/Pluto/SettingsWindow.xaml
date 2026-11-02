@@ -322,7 +322,10 @@
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
-                                                            <FontIcon FontSize="14" Glyph="{x:Bind local:Ui.CheckGlyph(Completed)}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                            <Grid>
+                                                                <FontIcon FontSize="14" Glyph="&#xE73E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Visibility="{x:Bind local:Ui.Shown(Completed)}" AutomationProperties.Name="Done" />
+                                                                <FontIcon FontSize="14" Glyph="&#xE711;" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="{x:Bind local:Ui.Hidden(Completed)}" AutomationProperties.Name="Not done" />
+                                                            </Grid>
                                                             <TextBlock Grid.Column="1" Text="{x:Bind Text}" TextWrapping="Wrap" />
                                                             <TextBlock Grid.Column="2" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{x:Bind CompletedAt}" />
                                                         </Grid>

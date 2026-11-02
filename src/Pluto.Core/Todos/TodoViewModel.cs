@@ -67,7 +67,11 @@ public sealed class DayViewModel(DayRecord record)
     /// <summary>"3 of 5 done".</summary>
     public string Summary => $"{record.Done} of {record.Total} done";
 
-    public IReadOnlyList<TodoItem> Todos => record.Todos;
+    /// <summary>
+    /// Every task of the day, done or not. A concrete list: WinUI can only show a collection whose real type the binding
+    /// knows, and behind <see cref="DayRecord.Todos"/> is a list type it was never told about, so the day showed empty.
+    /// </summary>
+    public List<TodoItem> Todos { get; } = [.. record.Todos];
 
     public bool HasUnfinished => record.Done < record.Total;
 }

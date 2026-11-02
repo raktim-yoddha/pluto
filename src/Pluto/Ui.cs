@@ -32,9 +32,6 @@ public static class Ui
     public static Windows.UI.Text.TextDecorations Strike(bool struck) =>
         struck ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None;
 
-    /// <summary>A done task's check, or an open task's empty circle (History).</summary>
-    public static string CheckGlyph(bool done) => done ? "" : "";
-
     public static Microsoft.UI.Xaml.Media.ImageSource Logo { get; } =
         new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo", "pluto-256.png")));
 
