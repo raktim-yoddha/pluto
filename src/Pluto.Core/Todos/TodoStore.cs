@@ -325,6 +325,32 @@ public sealed class TodoStore(string? file, Func<DateTimeOffset> now)
         }
     }
 
+    /// <summary>
+    /// Copies every past day's unfinished tasks back onto today's list, oldest day first, to keep working on them. Each
+    /// comes back once: a task already on today's list, or left open on several days, is not added again.
+    /// </summary>
+    public void RestoreAllUnfinished()
+    {
+        var have = State.Todos.Select(t => t.Text).ToHashSet(StringComparer.CurrentCultureIgnoreCase);
+        foreach (var t in Enumerable.Reverse(State.History).SelectMany(d => d.Todos).Where(t => !t.Completed))
+        {
+            if (have.Add(t.Text))
+            {
+                Add(t.Text);
+            }
+        }
+    }
+
+    /// <summary>Tasks done and in all over the last 7 days, today's list included.</summary>
+    public (int Done, int Total) Week()
+    {
+        var from = DateOnly.TryParseExact(State.Day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var today)
+            ? today.AddDays(-6).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : State.Day;
+        var todos = State.History.Where(d => string.CompareOrdinal(d.Date, from) >= 0).SelectMany(d => d.Todos).Concat(State.Todos).ToList();
+        return (todos.Count(t => t.Completed), todos.Count);
+    }
+
     /// <summary>The day a moment belongs to when days start at <paramref name="resetTime"/> (before it, it's still yesterday).</summary>
     public static string LogicalDay(DateTimeOffset at, string resetTime) => DayOf(at, resetTime);
 

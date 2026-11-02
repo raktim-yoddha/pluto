@@ -126,6 +126,20 @@ public sealed partial class TodoViewModel : ObservableObject
 
     public bool IsHistoryEmpty => History.Count == 0;
 
+    /// <summary>A past day has tasks left open (for "Copy all unfinished to today").</summary>
+    public bool HasUnfinishedHistory => _store.State.History.Any(d => d.Done < d.Total);
+
+    /// <summary>"75%": how much of the last 7 days' tasks got done, today's included.</summary>
+    public string WeekPercent => _store.Week() is (var done, > 0 and var total) ? $"{100 * done / total}%" : "–";
+
+    /// <summary>0…100 for the week's bar.</summary>
+    public double WeekProgress => _store.Week() is (var done, > 0 and var total) ? 100.0 * done / total : 0;
+
+    /// <summary>"18 of 24 tasks done in the last 7 days".</summary>
+    public string WeekNote => _store.Week() is (var done, > 0 and var total)
+        ? $"{done} of {total} tasks done in the last 7 days, today included"
+        : "No tasks in the last 7 days yet";
+
     public CompletedStyle CheckedStyle => _store.State.CheckedStyle;
 
     /// <summary>"Next new day at 3:00 AM".</summary>
@@ -206,6 +220,8 @@ public sealed partial class TodoViewModel : ObservableObject
 
     public void RestoreUnfinished(string dayId) => _store.RestoreUnfinished(dayId);
 
+    public void RestoreAllUnfinished() => _store.RestoreAllUnfinished();
+
     public void DeleteDay(string dayId) => _store.DeleteDay(dayId);
 
     public void ClearHistory() => _store.ClearHistory();
@@ -283,7 +299,7 @@ public sealed partial class TodoViewModel : ObservableObject
 
         Done = state.Todos.Count(t => t.Completed);
         Total = state.Todos.Count;
-        foreach (var name in new[] { nameof(Title), nameof(Count), nameof(Percent), nameof(ShowBar), nameof(ShowCount), nameof(IsEmpty), nameof(HasHistory), nameof(IsHistoryEmpty), nameof(NextDay), nameof(SaveNote), nameof(KeepNote), nameof(ResetTimeIndex), nameof(KeepIndex), nameof(OrderIndex), nameof(StyleIndex), nameof(ProgressIndex) })
+        foreach (var name in new[] { nameof(Title), nameof(Count), nameof(Percent), nameof(ShowBar), nameof(ShowCount), nameof(IsEmpty), nameof(HasHistory), nameof(IsHistoryEmpty), nameof(HasUnfinishedHistory), nameof(WeekPercent), nameof(WeekProgress), nameof(WeekNote), nameof(NextDay), nameof(SaveNote), nameof(KeepNote), nameof(ResetTimeIndex), nameof(KeepIndex), nameof(OrderIndex), nameof(StyleIndex), nameof(ProgressIndex) })
         {
             OnPropertyChanged(name);
         }

@@ -3,6 +3,15 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.5.0 — 2026-11-02 — Settings opens every time, and a week at a glance
+
+- Clicking Settings opens it again. Sometimes it opened invisible and stayed that way until Pluto restarted, so every
+  later click seemed to do nothing.
+- Settings › History shows how much of the last 7 days' tasks you finished (today's list included), as a bar and a
+  percentage.
+- Settings › History › "Copy all unfinished to today" (Ctrl+Shift+R) brings every past day's open tasks back onto
+  today's list in one go, oldest first, each only once, so you can pick work up across sessions.
+
 ## 0.4.0 — 2026-10-30 — Antigravity, and one steady gray
 
 - Settings › Agents to watch lists only the agents found on this PC, looked for again each time Settings opens.

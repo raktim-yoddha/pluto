@@ -237,23 +237,54 @@
                     <StackPanel MaxWidth="760" Padding="0,24,0,36" Spacing="4">
                         <Grid Margin="0,0,0,12">
                             <TextBlock FontFamily="{ThemeResource PlutoDisplayFont}" FontSize="28" FontWeight="SemiBold" Text="History" />
-                            <Button HorizontalAlignment="Right" VerticalAlignment="Center" Content="Clear history" IsEnabled="{x:Bind ViewModel.Todo.HasHistory, Mode=OneWay}">
-                                <Button.Flyout>
-                                    <Flyout x:Name="ClearFlyout">
-                                        <StackPanel Spacing="12">
-                                            <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Clear every past day?" />
-                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="This can't be undone." />
-                                            <Button Content="Clear history" Style="{StaticResource AccentButtonStyle}" Click="OnClearHistory" />
-                                        </StackPanel>
-                                    </Flyout>
-                                </Button.Flyout>
-                            </Button>
+                            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                                <!-- Every past day's open tasks back on today's list, to pick up where you left off; Ctrl+Shift+R. -->
+                                <Button
+                                    Content="Copy all unfinished to today"
+                                    Click="OnRestoreAll"
+                                    IsEnabled="{x:Bind ViewModel.Todo.HasUnfinishedHistory, Mode=OneWay}"
+                                    AutomationProperties.Name="Copy all unfinished to today">
+                                    <Button.KeyboardAccelerators>
+                                        <KeyboardAccelerator Key="R" Modifiers="Control,Shift" />
+                                    </Button.KeyboardAccelerators>
+                                </Button>
+                                <Button Content="Clear history" IsEnabled="{x:Bind ViewModel.Todo.HasHistory, Mode=OneWay}" AutomationProperties.Name="Clear history">
+                                    <Button.Flyout>
+                                        <Flyout x:Name="ClearFlyout">
+                                            <StackPanel Spacing="12">
+                                                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Clear every past day?" />
+                                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="This can't be undone." />
+                                                <Button Content="Clear history" Style="{StaticResource AccentButtonStyle}" Click="OnClearHistory" />
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </StackPanel>
                         </Grid>
                         <TextBlock
                             Margin="0,-8,0,8"
                             Style="{StaticResource CaptionTextBlockStyle}"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             Text="{x:Bind ViewModel.Todo.KeepNote, Mode=OneWay}" />
+                        <local:SettingCard Margin="0,0,0,8" Glyph="&#xE9D9;" Header="This week" Description="{x:Bind ViewModel.Todo.WeekNote, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <ProgressBar
+                                    Width="120"
+                                    VerticalAlignment="Center"
+                                    Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                    Value="{x:Bind ViewModel.Todo.WeekProgress, Mode=OneWay}"
+                                    Maximum="100"
+                                    AutomationProperties.Name="Done this week" />
+                                <TextBlock
+                                    MinWidth="44"
+                                    VerticalAlignment="Center"
+                                    TextAlignment="Right"
+                                    FontFamily="{ThemeResource PlutoDisplayFont}"
+                                    FontSize="20"
+                                    FontWeight="SemiBold"
+                                    Text="{x:Bind ViewModel.Todo.WeekPercent, Mode=OneWay}" />
+                            </StackPanel>
+                        </local:SettingCard>
                         <TextBlock
                             Style="{StaticResource BodyTextBlockStyle}"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"

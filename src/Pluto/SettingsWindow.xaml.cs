@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Windows.Storage.Pickers;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -14,6 +15,8 @@ namespace Pluto;
 /// <summary>Pluto's settings, laid out like Windows Settings: the system title bar, a navigation pane, cards.</summary>
 public sealed partial class SettingsWindow : Window
 {
+    private readonly DispatcherQueueTimer _uncloak;
+
     public SettingsWindow(PetViewModel viewModel)
     {
         ViewModel = viewModel;
@@ -27,16 +30,18 @@ public sealed partial class SettingsWindow : Window
 
         // Hidden until it is drawn, so it never shows black first. XAML's first frames reach the screen a few frames
         // after it says they rendered (uncloaking at once still showed one or two black frames), hence the short wait.
+        // The timer is a field: held only by a local, a garbage collection in those 80 ms took it, its tick never
+        // came, and Settings stayed cloaked (open, but invisible) for as long as Pluto ran.
         Native.Cloak(hwnd, true);
+        _uncloak = DispatcherQueue.CreateTimer();
+        _uncloak.Interval = TimeSpan.FromMilliseconds(80);
+        _uncloak.IsRepeating = false;
+        _uncloak.Tick += (_, _) => Native.Cloak(hwnd, false);
         RootGrid.Loaded += (_, _) => CompositionTarget.Rendered += Uncloak;
         void Uncloak(object? sender, RenderedEventArgs e)
         {
             CompositionTarget.Rendered -= Uncloak;
-            var wait = DispatcherQueue.CreateTimer();
-            wait.Interval = TimeSpan.FromMilliseconds(80);
-            wait.IsRepeating = false;
-            wait.Tick += (_, _) => Native.Cloak(hwnd, false);
-            wait.Start();
+            _uncloak.Start();
         }
     }
 
@@ -95,6 +100,8 @@ public sealed partial class SettingsWindow : Window
         ViewModel.Todo.ClearHistory();
         ClearFlyout.Hide();
     }
+
+    private void OnRestoreAll(object sender, RoutedEventArgs e) => ViewModel.Todo.RestoreAllUnfinished();
 
     // A day's buttons sit in its Expander's content, where x:Bind values (like a Tag) are left empty once History has
     // been rebuilt; the inherited DataContext is always the day.

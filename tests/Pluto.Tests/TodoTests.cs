@@ -98,6 +98,45 @@ public class TodoTests
     }
 
     [Fact]
+    public void Every_days_unfinished_tasks_come_back_at_once_each_only_once()
+    {
+        var s = Make();
+        s.Add("Ship v1");
+        s.Add("Tweet it");
+        s.Toggle(s.State.Todos[0].Id);
+        _now = _now.AddDays(1);
+        s.RollOverIfDue();
+        s.Add("Tweet it"); // carried over by hand, left open again
+        s.Add("Write docs");
+        _now = _now.AddDays(1);
+        s.RollOverIfDue();
+        s.Add("write docs"); // already on today's list
+
+        s.RestoreAllUnfinished();
+        Assert.Equal(["o write docs", "o Tweet it"], Texts(s));
+        s.RestoreAllUnfinished();
+        Assert.Equal(["o write docs", "o Tweet it"], Texts(s));
+    }
+
+    [Fact]
+    public void The_week_counts_the_last_seven_days_with_today()
+    {
+        var s = Make();
+        Assert.Equal((0, 0), s.Week());
+        s.Add("Too old");
+        _now = _now.AddDays(1);
+        s.RollOverIfDue();
+        s.Add("Done");
+        s.Add("Open");
+        s.Toggle(s.State.Todos[0].Id);
+        _now = _now.AddDays(6);
+        s.RollOverIfDue(); // the first day is now 7 days back: out of the week
+        s.Add("Today");
+        s.Toggle(s.State.Todos[0].Id);
+        Assert.Equal((2, 3), s.Week());
+    }
+
+    [Fact]
     public void History_keeps_only_the_chosen_number_of_days_and_can_be_cleared()
     {
         var s = Make();
