@@ -64,7 +64,7 @@ internal sealed partial class AcrylicBody : IDisposable
         _surface!.SourceSize = windowDips * s;
         _shapes!.Size = windowDips * s;
         Shade(_left!, new Vector2(0, (float)flare * s), (float)flare * s);
-        Shade(_right!, new Vector2((float)flare * s, (float)flare * s), (float)flare * s);
+        Shade(_right!, new Vector2(((float)flare * s) + 1, (float)flare * s), (float)flare * s);
     }
 
     /// <summary>Moves the acrylic's shape with the body (the same springs as <see cref="NotchSurface.MoveTo"/>).</summary>
@@ -148,8 +148,11 @@ internal sealed partial class AcrylicBody : IDisposable
         _left = Gradient(c);
         _right = Gradient(c);
         var shapes = _shapes = c.CreateShapeVisual();
+        // Antialiased edges: drawn into a visual surface, shapes are otherwise rasterized hard (stair-stepped corners).
+        shapes.BorderMode = Windows.UI.Composition.CompositionBorderMode.Soft;
+        // Each shoulder reaches a pixel under the body, so their two soft edges never leave a faint seam between them.
         shapes.Shapes.Add(Shoulder(c, _left, "Vector2(p.Pos.X - p.Flare, p.Pos.Y)"));
-        shapes.Shapes.Add(Shoulder(c, _right, "Vector2(p.Pos.X + p.Size.X, p.Pos.Y)"));
+        shapes.Shapes.Add(Shoulder(c, _right, "Vector2(p.Pos.X + p.Size.X - 1, p.Pos.Y)"));
         shapes.Shapes.Add(bodyShape);
 
         _surface = c.CreateVisualSurface();
@@ -179,7 +182,7 @@ internal sealed partial class AcrylicBody : IDisposable
     private Windows.UI.Composition.CompositionSpriteShape Shoulder(Windows.UI.Composition.Compositor c, Windows.UI.Composition.CompositionBrush brush, string offset)
     {
         var square = c.CreateRectangleGeometry();
-        Bind(square, "Size", "Vector2(p.Flare, p.Flare)");
+        Bind(square, "Size", "Vector2(p.Flare + 1, p.Flare)");
         var shape = c.CreateSpriteShape(square);
         shape.FillBrush = brush;
         Bind(shape, "Offset", offset);

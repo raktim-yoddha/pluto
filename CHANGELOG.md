@@ -3,6 +3,12 @@
 Pluto follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`. Before 1.0, new features bump MINOR
 and fixes bump PATCH.
 
+## 0.5.1 — 2026-11-03 — Razor-sharp edges
+
+- Pluto's rounded corners are smooth again on every background. They were drawn without antialiasing, so they showed
+  as jagged steps, most of all against light or white windows and games.
+- No faint line where the notch's curved shoulders meet its body.
+
 ## 0.5.0 — 2026-11-02 — Settings opens every time, History shows every task
 
 - Clicking Settings opens it again. Sometimes it opened invisible and stayed that way until Pluto restarted, so every

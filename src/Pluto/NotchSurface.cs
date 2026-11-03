@@ -50,6 +50,7 @@ internal sealed class NotchSurface
         _p.InsertScalar("Radius", 0);
         _p.InsertScalar("Lift", 1);
         _p.InsertScalar("Flare", 0);
+        _p.InsertScalar("Px", 1);
 
         _fill = TopToBottom();
         _rim = TopToBottom();
@@ -63,8 +64,10 @@ internal sealed class NotchSurface
 
         var visual = _c.CreateShapeVisual();
         visual.RelativeSizeAdjustment = Vector2.One;
+        visual.BorderMode = CompositionBorderMode.Soft; // antialiased edges, never stair-stepped corners
+        // Each shoulder reaches a pixel (Px) under the body, so their two soft edges never leave a faint seam between them.
         visual.Shapes.Add(Shoulder(_leftShoulder, "Vector2(p.Pos.X - p.Flare, p.Pos.Y)"));
-        visual.Shapes.Add(Shoulder(_rightShoulder, "Vector2(p.Pos.X + p.Size.X, p.Pos.Y)"));
+        visual.Shapes.Add(Shoulder(_rightShoulder, "Vector2(p.Pos.X + p.Size.X - p.Px, p.Pos.Y)"));
         visual.Shapes.Add(body);
 
         // A soft shadow cast by the very same shape, so the body lifts off backgrounds of its own colour.
@@ -183,8 +186,9 @@ internal sealed class NotchSurface
         _scale = scale;
         _p.InsertScalar("Flare", (float)flare);
         _p.InsertScalar("Lift", flare > 0 ? 1 : 0);
+        _p.InsertScalar("Px", (float)(1 / scale));
         Shade(_leftShoulder, new Vector2(0, (float)flare));
-        Shade(_rightShoulder, new Vector2((float)flare, (float)flare));
+        Shade(_rightShoulder, new Vector2((float)(flare + (1 / scale)), (float)flare));
     }
 
     /// <summary>
@@ -256,7 +260,7 @@ internal sealed class NotchSurface
     private CompositionSpriteShape Shoulder(CompositionBrush brush, string offset)
     {
         var square = _c.CreateRectangleGeometry();
-        Bind(square, "Size", "Vector2(p.Flare, p.Flare)");
+        Bind(square, "Size", "Vector2(p.Flare + p.Px, p.Flare)");
         var shape = _c.CreateSpriteShape(square);
         shape.FillBrush = brush;
         Bind(shape, "Offset", offset);

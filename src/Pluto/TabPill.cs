@@ -27,6 +27,7 @@ internal sealed class TabPill
         sprite.FillBrush = _fill;
         var visual = _c.CreateShapeVisual();
         visual.RelativeSizeAdjustment = Vector2.One;
+        visual.BorderMode = CompositionBorderMode.Soft; // antialiased edges
         visual.Shapes.Add(sprite);
         ElementCompositionPreview.SetElementChildVisual(host, visual);
     }
